@@ -150,33 +150,25 @@ function createNewFolder(folderName) {
 }
 
 /**
- * Recebe o PDF da correção + dados, salva no histórico, gera relatório,
- * salva no Drive na pasta escolhida e envia e-mail com os anexos.
+ * Recebe o PDF completo (correcao + notas + historico já embutido),
+ * salva no histórico da planilha, salva no Drive e envia por e-mail.
+ * O PDF já vem pronto do frontend com todas as páginas.
  */
 function processCorrection(pdfBase64, studentName, studentEmail, lessonNumber, theme, scores, folderId) {
   try {
     const { c1, c2, c3, c4, c5, total } = scores;
 
-    // 1. Salvar no histórico
+    // 1. Salvar no histórico da planilha
     const histResult = saveToHistory(studentName, lessonNumber, theme, c1, c2, c3, c4, c5, total);
 
-    // 2. Buscar histórico completo para o relatório
-    const history = getStudentHistory(studentName);
-
-    // 3. Converter o PDF da correção
-    const correctionBlob = Utilities.newBlob(
+    // 2. Converter o PDF (já contém correcao + notas + historico + grafico)
+    const pdfBlob = Utilities.newBlob(
       Utilities.base64Decode(pdfBase64.split(',')[1]),
       'application/pdf',
       'Correcao-Aula' + lessonNumber + '-' + sanitizeName(studentName) + '.pdf'
     );
 
-    // 4. Gerar PDF do relatório de histórico
-    const reportHtml = generateHistoryReportHtml(studentName, history);
-    const reportBlob = HtmlService.createHtmlOutput(reportHtml)
-      .getBlob()
-      .setName('Historico-' + sanitizeName(studentName) + '.pdf');
-
-    // 5. Salvar na pasta escolhida
+    // 3. Salvar na pasta escolhida
     let targetFolder;
     if (folderId) {
       targetFolder = DriveApp.getFolderById(folderId);
@@ -184,22 +176,18 @@ function processCorrection(pdfBase64, studentName, studentEmail, lessonNumber, t
       targetFolder = getOrCreateStudentFolder(studentName);
     }
 
-    const correctionFile = targetFolder.createFile(correctionBlob);
-    const reportFile = targetFolder.createFile(reportBlob);
-    const fileUrl = correctionFile.getUrl();
+    const file = targetFolder.createFile(pdfBlob);
+    const fileUrl = file.getUrl();
 
-    // 6. Enviar e-mail com ambos os anexos
+    // 4. Enviar e-mail com o PDF único
     let emailStatus = "E-mail não enviado (endereço não encontrado).";
     if (studentEmail && studentEmail.includes('@')) {
-      const scoreTable = history.map(h =>
-        '  Aula ' + h.lessonNumber + ' (' + h.date + '): ' + h.total + '/1000'
-      ).join('\n');
-
+      const history = getStudentHistory(studentName);
       MailApp.sendEmail({
         to: studentEmail,
         subject: 'Correção da Redação - Aula ' + lessonNumber + ': ' + theme,
         htmlBody: generateEmailHtml(studentName, lessonNumber, theme, scores, history),
-        attachments: [correctionBlob, reportBlob]
+        attachments: [pdfBlob]
       });
       emailStatus = "E-mail enviado com sucesso!";
     }
@@ -209,7 +197,7 @@ function processCorrection(pdfBase64, studentName, studentEmail, lessonNumber, t
       url: fileUrl,
       emailStatus: emailStatus,
       historyMessage: histResult.message,
-      historyCount: history.length
+      historyCount: getStudentHistory(studentName).length
     };
 
   } catch (e) {
@@ -254,129 +242,8 @@ function getOrCreateStudentFolder(studentName) {
 }
 
 /**
- * Gera o HTML do relatório de histórico com tabela e gráfico embutido (SVG).
- */
-function generateHistoryReportHtml(studentName, history) {
-  // Gerar gráfico SVG embutido
-  const svgChart = generateSvgChart(history);
-
-  let tableRows = '';
-  history.forEach(h => {
-    tableRows += '<tr>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.lessonNumber + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;">' + h.theme + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.date + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.c1 + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.c2 + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.c3 + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.c4 + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;">' + h.c5 + '</td>' +
-      '<td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;">' + h.total + '</td>' +
-      '</tr>';
-  });
-
-  // Calcular média
-  let avgTotal = 0;
-  if (history.length > 0) {
-    avgTotal = Math.round(history.reduce((sum, h) => sum + h.total, 0) / history.length);
-  }
-
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-    '<style>' +
-    'body{font-family:Arial,sans-serif;margin:40px;color:#333;}' +
-    'h1{color:#1e40af;border-bottom:3px solid #1e40af;padding-bottom:10px;}' +
-    'h2{color:#374151;margin-top:30px;}' +
-    'table{border-collapse:collapse;width:100%;margin-top:10px;}' +
-    'th{background-color:#1e40af;color:white;padding:10px;border:1px solid #1e40af;text-align:center;}' +
-    '.summary{background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;padding:20px;margin-top:20px;}' +
-    '.summary-grid{display:flex;justify-content:space-around;text-align:center;}' +
-    '.summary-item .number{font-size:28px;font-weight:bold;color:#1e40af;}' +
-    '.summary-item .label{font-size:12px;color:#6b7280;}' +
-    '.chart-container{margin-top:20px;text-align:center;}' +
-    '.footer{margin-top:40px;text-align:center;color:#9ca3af;font-size:11px;border-top:1px solid #e5e7eb;padding-top:10px;}' +
-    '</style></head><body>' +
-    '<h1>Relatório de Desempenho - Redação ENEM</h1>' +
-    '<p><strong>Aluno(a):</strong> ' + studentName + '</p>' +
-    '<p><strong>Data do Relatório:</strong> ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') + '</p>' +
-
-    '<div class="summary"><div class="summary-grid">' +
-    '<div class="summary-item"><div class="number">' + history.length + '</div><div class="label">Redações Corrigidas</div></div>' +
-    '<div class="summary-item"><div class="number">' + avgTotal + '</div><div class="label">Média Geral</div></div>' +
-    '<div class="summary-item"><div class="number">' + (history.length > 0 ? history[history.length - 1].total : 0) + '</div><div class="label">Última Nota</div></div>' +
-    '</div></div>' +
-
-    '<h2>Evolução das Notas</h2>' +
-    '<div class="chart-container">' + svgChart + '</div>' +
-
-    '<h2>Detalhamento por Aula</h2>' +
-    '<table><thead><tr>' +
-    '<th>Aula</th><th>Tema</th><th>Data</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>Total</th>' +
-    '</tr></thead><tbody>' + tableRows + '</tbody></table>' +
-
-    '<div class="footer">Professora Jaqueline Cardoso — Corretor de Redações ENEM — Projeto Johnny v2.0</div>' +
-    '</body></html>';
-}
-
-/**
- * Gera um gráfico SVG de linhas mostrando a evolução das notas.
- */
-function generateSvgChart(history) {
-  if (history.length === 0) {
-    return '<p style="color:#999;">Nenhum dado de histórico disponível.</p>';
-  }
-
-  const width = 600, height = 300;
-  const padding = { top: 30, right: 30, bottom: 60, left: 50 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-
-  const maxScore = 1000;
-  const numPoints = history.length;
-
-  // Calcular posições dos pontos
-  const points = history.map((h, i) => ({
-    x: padding.left + (numPoints === 1 ? chartWidth / 2 : (i / (numPoints - 1)) * chartWidth),
-    y: padding.top + chartHeight - (h.total / maxScore) * chartHeight,
-    total: h.total,
-    lesson: h.lessonNumber,
-    date: h.date
-  }));
-
-  // Linha do gráfico
-  let pathD = 'M ' + points.map(p => p.x + ' ' + p.y).join(' L ');
-
-  // Área preenchida
-  let areaD = pathD + ' L ' + points[points.length - 1].x + ' ' + (padding.top + chartHeight) +
-              ' L ' + points[0].x + ' ' + (padding.top + chartHeight) + ' Z';
-
-  // Linhas de grade horizontais
-  let gridLines = '';
-  for (let score = 0; score <= 1000; score += 200) {
-    const y = padding.top + chartHeight - (score / maxScore) * chartHeight;
-    gridLines += '<line x1="' + padding.left + '" y1="' + y + '" x2="' + (width - padding.right) + '" y2="' + y + '" stroke="#e5e7eb" stroke-width="1"/>';
-    gridLines += '<text x="' + (padding.left - 8) + '" y="' + (y + 4) + '" text-anchor="end" fill="#6b7280" font-size="11">' + score + '</text>';
-  }
-
-  // Pontos e labels
-  let pointsSvg = '';
-  points.forEach(p => {
-    pointsSvg += '<circle cx="' + p.x + '" cy="' + p.y + '" r="5" fill="#1e40af" stroke="white" stroke-width="2"/>';
-    pointsSvg += '<text x="' + p.x + '" y="' + (p.y - 12) + '" text-anchor="middle" fill="#1e40af" font-size="12" font-weight="bold">' + p.total + '</text>';
-    pointsSvg += '<text x="' + p.x + '" y="' + (padding.top + chartHeight + 20) + '" text-anchor="middle" fill="#374151" font-size="10">Aula ' + p.lesson + '</text>';
-    pointsSvg += '<text x="' + p.x + '" y="' + (padding.top + chartHeight + 35) + '" text-anchor="middle" fill="#9ca3af" font-size="9">' + p.date + '</text>';
-  });
-
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" width="100%" style="max-width:600px;">' +
-    '<rect width="' + width + '" height="' + height + '" fill="white" rx="8"/>' +
-    gridLines +
-    '<path d="' + areaD + '" fill="rgba(30,64,175,0.1)"/>' +
-    '<path d="' + pathD + '" fill="none" stroke="#1e40af" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
-    pointsSvg +
-    '</svg>';
-}
-
-/**
  * Gera o HTML do e-mail enviado ao aluno.
+ * O PDF anexo já contém o histórico completo com gráfico (gerado no frontend).
  */
 function generateEmailHtml(studentName, lessonNumber, theme, scores, history) {
   let historyRows = '';
@@ -415,13 +282,10 @@ function generateEmailHtml(studentName, lessonNumber, theme, scores, history) {
       '<h3 style="color:#374151;">Seu Histórico</h3>' +
       '<table style="width:100%;border-collapse:collapse;">' +
       '<tr style="background:#1e40af;color:white;"><th style="padding:8px;">Aula</th><th style="padding:8px;">Data</th><th style="padding:8px;">Nota</th></tr>' +
-      historyRows + '</table>' +
-      '<p style="font-size:12px;color:#6b7280;margin-top:10px;">Veja o relatório completo com gráfico de evolução no PDF anexo.</p>'
+      historyRows + '</table>'
       : '') +
 
-    '<p>Os arquivos em anexo contêm:<br>' +
-    '1. PDF da correção com anotações<br>' +
-    '2. Relatório de desempenho com gráfico de evolução</p>' +
+    '<p style="margin-top:15px;">O PDF em anexo contém a correção completa com anotações, notas e histórico de desempenho.</p>' +
     '</div>' +
 
     '<div style="background:#f3f4f6;padding:15px;text-align:center;border-radius:0 0 8px 8px;border:1px solid #e5e7eb;border-top:none;">' +
