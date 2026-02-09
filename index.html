@@ -515,7 +515,58 @@
         els.panelOverlay.addEventListener('click', closeMobilePanel);
         document.addEventListener('keydown', (e) => { if (e.key === 'F5') { e.preventDefault(); location.reload(); } });
 
-        // --- SALVAR E ENVIAR (otimizado: captura direto dos canvas, sem html2canvas) ---
+        // --- Gerar grafico de historico em canvas offscreen para incluir no PDF ---
+        function renderChartToCanvas(history, width, height) {
+            return new Promise(resolve => {
+                const offscreen = document.createElement('canvas');
+                offscreen.width = width;
+                offscreen.height = height;
+                // Chart.js precisa que o canvas esteja no DOM temporariamente
+                offscreen.style.position = 'fixed';
+                offscreen.style.left = '-9999px';
+                document.body.appendChild(offscreen);
+
+                const chart = new Chart(offscreen.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: history.map(h => 'Aula ' + h.lessonNumber),
+                        datasets: [{
+                            label: 'Nota Final',
+                            data: history.map(h => h.total),
+                            borderColor: '#1e40af',
+                            backgroundColor: 'rgba(30,64,175,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#1e40af',
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        animation: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: true, text: 'Evolucao das Notas', font: { size: 16 }, color: '#1e40af' }
+                        },
+                        scales: {
+                            y: { min: 0, max: 1000, ticks: { stepSize: 200 } },
+                            x: { ticks: { font: { size: 11 } } }
+                        }
+                    }
+                });
+
+                // Aguardar renderizacao
+                setTimeout(() => {
+                    const imgData = offscreen.toDataURL('image/png');
+                    chart.destroy();
+                    document.body.removeChild(offscreen);
+                    resolve(imgData);
+                }, 100);
+            });
+        }
+
+        // --- SALVAR E ENVIAR ---
         els.saveFinalizeBtn.addEventListener('click', async () => {
             const studentIdx = els.studentSelect.value;
             if (studentIdx === '') { showAlert('Atencao', 'Abra os Dados da Correcao e selecione um aluno.'); openDrawer(); return; }
@@ -541,20 +592,21 @@
 
             await new Promise(r => setTimeout(r, 50));
 
-            // Captura RAPIDA: extrair canvases diretamente (sem html2canvas)
+            // === GERAR PDF COMPLETO (correcao + notas + historico tudo no mesmo arquivo) ===
             const containers = document.querySelectorAll('.page-container');
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
             const pageW = pdf.internal.pageSize.getWidth();
             const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 25;
             let isFirstPage = true;
 
+            // --- Parte 1: Paginas da correcao (redacao com anotacoes) ---
             containers.forEach(container => {
                 const pageCanvas = container.querySelector('.page-content');
                 const annotCanvas = container.querySelector('.annotation-canvas');
                 if (!pageCanvas) return;
 
-                // Mesclar page + anotacoes em um canvas temporario
                 const merged = document.createElement('canvas');
                 merged.width = pageCanvas.width;
                 merged.height = pageCanvas.height;
@@ -568,11 +620,9 @@
                 if (!isFirstPage) pdf.addPage();
                 isFirstPage = false;
 
-                // Se a imagem cabe na pagina, adicionar direto
                 if (imgH <= pageH) {
                     pdf.addImage(imgData, 'JPEG', 0, 0, pageW, imgH);
                 } else {
-                    // Imagem maior que uma pagina: dividir
                     let yOffset = 0;
                     while (yOffset < imgH) {
                         if (yOffset > 0) pdf.addPage();
@@ -582,8 +632,166 @@
                 }
             });
 
-            const pdfOutput = pdf.output('datauristring');
+            // --- Parte 2: Pagina de resumo da nota ---
+            pdf.addPage();
+            let y = margin;
 
+            // Linha decorativa superior
+            pdf.setFillColor(30, 64, 175);
+            pdf.rect(0, 0, pageW, 6, 'F');
+
+            y = 30;
+            pdf.setFontSize(18);
+            pdf.setTextColor(30, 64, 175);
+            pdf.text('Correcao da Redacao', margin, y);
+            y += 22;
+            pdf.setFontSize(12);
+            pdf.setTextColor(80, 80, 80);
+            pdf.text('Aluno(a): ' + student.name, margin, y); y += 16;
+            pdf.text('Aula: ' + lessonNum, margin, y); y += 16;
+            pdf.text('Tema: ' + theme, margin, y); y += 16;
+            pdf.text('Data: ' + new Date().toLocaleDateString('pt-BR'), margin, y); y += 25;
+
+            // Caixa de notas
+            pdf.setFillColor(240, 249, 255);
+            pdf.setDrawColor(191, 219, 254);
+            pdf.roundedRect(margin, y, pageW - margin * 2, 160, 5, 5, 'FD');
+            y += 18;
+            pdf.setFontSize(14);
+            pdf.setTextColor(30, 64, 175);
+            pdf.text('Notas por Competencia', margin + 12, y); y += 20;
+
+            pdf.setFontSize(12);
+            pdf.setTextColor(55, 65, 81);
+            const compLabels = [
+                ['C1 - Dominio da norma culta', scores.c1],
+                ['C2 - Compreensao da proposta', scores.c2],
+                ['C3 - Organizar informacoes', scores.c3],
+                ['C4 - Mecanismos linguisticos', scores.c4],
+                ['C5 - Proposta de intervencao', scores.c5]
+            ];
+            compLabels.forEach(([label, val]) => {
+                pdf.text(label, margin + 12, y);
+                pdf.setTextColor(30, 64, 175);
+                pdf.text(String(val), pageW - margin - 40, y);
+                pdf.setTextColor(55, 65, 81);
+                y += 18;
+            });
+
+            y += 8;
+            pdf.setDrawColor(30, 64, 175);
+            pdf.line(margin + 12, y - 6, pageW - margin - 12, y - 6);
+            pdf.setFontSize(18);
+            pdf.setTextColor(30, 64, 175);
+            pdf.text('TOTAL: ' + scores.total + ' / 1000', margin + 12, y + 10);
+
+            // --- Parte 3: Historico do aluno (incluindo a correcao atual) ---
+            // Montar historico completo adicionando a nota atual
+            const fullHistory = currentHistory.slice();
+            const today = new Date().toLocaleDateString('pt-BR');
+            const existingIdx = fullHistory.findIndex(h => h.lessonNumber === Number(lessonNum));
+            if (existingIdx >= 0) {
+                fullHistory[existingIdx] = { lessonNumber: Number(lessonNum), theme: theme, date: today, c1: scores.c1, c2: scores.c2, c3: scores.c3, c4: scores.c4, c5: scores.c5, total: scores.total };
+            } else {
+                fullHistory.push({ lessonNumber: Number(lessonNum), theme: theme, date: today, c1: scores.c1, c2: scores.c2, c3: scores.c3, c4: scores.c4, c5: scores.c5, total: scores.total });
+            }
+            fullHistory.sort((a, b) => a.lessonNumber - b.lessonNumber);
+
+            if (fullHistory.length > 0) {
+                pdf.addPage();
+                y = margin;
+                pdf.setFillColor(30, 64, 175);
+                pdf.rect(0, 0, pageW, 6, 'F');
+
+                y = 30;
+                pdf.setFontSize(18);
+                pdf.setTextColor(30, 64, 175);
+                pdf.text('Historico de Desempenho', margin, y);
+                y += 14;
+                pdf.setFontSize(10);
+                pdf.setTextColor(120, 120, 120);
+                pdf.text('Aluno(a): ' + student.name + '  |  ' + fullHistory.length + ' redacao(es) corrigida(s)', margin, y);
+                y += 20;
+
+                // Resumo (media + ultima nota)
+                const avg = Math.round(fullHistory.reduce((s, h) => s + h.total, 0) / fullHistory.length);
+                const lastNote = fullHistory[fullHistory.length - 1].total;
+
+                pdf.setFillColor(240, 249, 255);
+                pdf.setDrawColor(191, 219, 254);
+                pdf.roundedRect(margin, y, pageW - margin * 2, 40, 5, 5, 'FD');
+                pdf.setFontSize(11);
+                pdf.setTextColor(30, 64, 175);
+                const thirdW = (pageW - margin * 2) / 3;
+                pdf.text('Redacoes: ' + fullHistory.length, margin + thirdW * 0.5 - 20, y + 24);
+                pdf.text('Media: ' + avg, margin + thirdW * 1.5 - 15, y + 24);
+                pdf.text('Ultima: ' + lastNote, margin + thirdW * 2.5 - 15, y + 24);
+                y += 52;
+
+                // Tabela de historico
+                pdf.setFontSize(12);
+                pdf.setTextColor(30, 64, 175);
+                pdf.text('Detalhamento por Aula', margin, y); y += 14;
+
+                // Cabecalho da tabela
+                const colWidths = [35, 120, 55, 30, 30, 30, 30, 30, 40];
+                const headers = ['Aula', 'Tema', 'Data', 'C1', 'C2', 'C3', 'C4', 'C5', 'Total'];
+                pdf.setFillColor(30, 64, 175);
+                pdf.rect(margin, y, pageW - margin * 2, 18, 'F');
+                pdf.setFontSize(9);
+                pdf.setTextColor(255, 255, 255);
+                let xPos = margin + 3;
+                headers.forEach((h, i) => { pdf.text(h, xPos, y + 12); xPos += colWidths[i]; });
+                y += 18;
+
+                // Linhas da tabela
+                pdf.setTextColor(55, 65, 81);
+                fullHistory.forEach((h, idx) => {
+                    if (y > pageH - 40) {
+                        pdf.addPage();
+                        y = margin;
+                        pdf.setFillColor(30, 64, 175);
+                        pdf.rect(0, 0, pageW, 6, 'F');
+                        y = 25;
+                    }
+                    const isCurrent = h.lessonNumber === Number(lessonNum);
+                    if (isCurrent) { pdf.setFillColor(239, 246, 255); pdf.rect(margin, y - 1, pageW - margin * 2, 16, 'F'); }
+                    else if (idx % 2 === 0) { pdf.setFillColor(249, 250, 251); pdf.rect(margin, y - 1, pageW - margin * 2, 16, 'F'); }
+
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(55, 65, 81);
+                    xPos = margin + 3;
+                    const vals = [String(h.lessonNumber), (h.theme || '').substring(0, 25), h.date, String(h.c1), String(h.c2), String(h.c3), String(h.c4), String(h.c5), String(h.total)];
+                    vals.forEach((v, i) => { pdf.text(v, xPos, y + 10); xPos += colWidths[i]; });
+
+                    if (isCurrent) { pdf.setTextColor(30, 64, 175); pdf.setFontSize(7); pdf.text('(atual)', xPos - 10, y + 10); }
+                    y += 16;
+                });
+
+                // Grafico de evolucao (se 2+ aulas)
+                if (fullHistory.length >= 2) {
+                    if (y > pageH - 250) { pdf.addPage(); y = margin; pdf.setFillColor(30, 64, 175); pdf.rect(0, 0, pageW, 6, 'F'); y = 25; }
+                    y += 10;
+                    pdf.setFontSize(12);
+                    pdf.setTextColor(30, 64, 175);
+                    pdf.text('Evolucao das Notas', margin, y);
+                    y += 10;
+
+                    const chartImg = await renderChartToCanvas(fullHistory, 700, 300);
+                    const chartW = pageW - margin * 2;
+                    const chartH = chartW * (300 / 700);
+                    pdf.addImage(chartImg, 'PNG', margin, y, chartW, chartH);
+                    y += chartH + 15;
+                }
+
+                // Rodape
+                if (y > pageH - 30) { pdf.addPage(); y = pageH - 20; }
+                pdf.setFontSize(8);
+                pdf.setTextColor(160, 160, 160);
+                pdf.text('Professora Jaqueline Cardoso — Corretor de Redacoes ENEM — Projeto Johnny v2.0', margin, pageH - 12);
+            }
+
+            const pdfOutput = pdf.output('datauristring');
             els.saveFinalizeBtn.textContent = 'Enviando...';
 
             google.script.run
