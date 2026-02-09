@@ -21,15 +21,16 @@
         .score-button { padding: 0.3rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-weight: 500; transition: all 0.2s ease-in-out; background-color: #f9fafb; color: #374151; flex-grow: 1; }
         .score-button:hover { background-color: #f3f4f6; border-color: #9ca3af; }
         .score-button.selected-score { background-color: #2563eb; color: white; border-color: #1d4ed8; transform: scale(1.05); box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1); }
-        .suggestion-item:hover { background-color: #f3f4f6; }
+        select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; }
+        .history-badge { display: inline-flex; align-items: center; gap: 4px; background: #eff6ff; color: #1e40af; font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
         @media (max-width: 1023px) {
-            #evaluation-panel { position: fixed; top: 0; right: 0; width: 80%; max-width: 300px; height: 100vh; transform: translateX(100%); transition: transform 0.3s ease-in-out; z-index: 50; overflow-y: auto; box-shadow: -4px 0 15px rgba(0,0,0,0.2); }
+            #evaluation-panel { position: fixed; top: 0; right: 0; width: 85%; max-width: 340px; height: 100vh; transform: translateX(100%); transition: transform 0.3s ease-in-out; z-index: 50; overflow-y: auto; box-shadow: -4px 0 15px rgba(0,0,0,0.2); }
             #evaluation-panel.is-open { transform: translateX(0); }
             #panel-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 49; opacity: 0; transition: opacity 0.3s ease-in-out; pointer-events: none; }
             #panel-overlay.is-active { opacity: 1; pointer-events: auto; }
             #panel-toggle-button { position: fixed; top: 50%; right: 0; transform: translateY(-50%); z-index: 60; background-color: #2563eb; color: white; padding: 1rem 0.5rem; border-top-left-radius: 0.5rem; border-bottom-left-radius: 0.5rem; box-shadow: -2px 0 5px rgba(0,0,0,0.2); transition: right 0.3s ease-in-out; }
-            #evaluation-panel.is-open + #panel-toggle-button { right: 80%; }
-            @media (min-width: 300px) { #evaluation-panel.is-open + #panel-toggle-button { right: 300px; } }
+            #evaluation-panel.is-open + #panel-toggle-button { right: 85%; }
+            @media (min-width: 340px) { #evaluation-panel.is-open + #panel-toggle-button { right: 340px; } }
         }
     </style>
 </head>
@@ -39,69 +40,105 @@
         <header id="page-header" class="text-center mb-3">
             <h1 class="text-xl md:text-2xl font-bold text-gray-900">Corretor Web App</h1>
             <p class="text-sm md:text-base font-semibold text-gray-700">PROFESSORA JAQUELINE CARDOSO</p>
-            <p class="text-xs text-blue-600 mt-1" id="loading-students">Carregando lista de alunos...</p>
+            <p class="text-xs text-blue-600 mt-1" id="loading-status">Carregando dados...</p>
         </header>
 
-        <div id="file-selector-bar" class="bg-white p-2 rounded-lg shadow-md mb-3 flex items-center justify-center">
-            <label for="file-upload" class="cursor-pointer bg-blue-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-blue-700 transition-colors text-xs">
-                Selecionar Arquivo
+        <div id="file-selector-bar" class="bg-white p-2 rounded-lg shadow-md mb-3 flex items-center justify-center gap-3">
+            <label for="file-upload" class="cursor-pointer bg-blue-600 text-white font-semibold py-1.5 px-4 rounded-lg hover:bg-blue-700 transition-colors text-xs">
+                Selecionar Arquivo (PDF ou Imagem)
             </label>
             <input id="file-upload" type="file" class="hidden" accept="image/*,application/pdf">
-            <span id="file-name" class="text-gray-500 ml-3 text-xs truncate max-w-xs">Nenhum arquivo</span>
+            <span id="file-name" class="text-gray-500 text-xs truncate max-w-xs">Nenhum arquivo</span>
         </div>
 
-        <main id="main-content" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <main id="main-content" class="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <section id="essay-viewer" class="lg:col-span-3 bg-gray-200 rounded-lg overflow-hidden min-h-[90vh] relative">
                  <div id="zoom-target">
                     <div id="drop-zone" class="flex flex-col items-center justify-center h-full border-2 border-dashed border-gray-400 rounded-lg text-center p-8 absolute inset-0">
                         <svg class="h-12 w-12 text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                         <p class="text-gray-600 font-semibold">Arraste e solte o arquivo aqui</p>
+                        <p class="text-gray-400 text-xs mt-1">Aceita PDF e imagens (JPG, PNG). Imagens serão convertidas para PDF automaticamente.</p>
                     </div>
                  </div>
             </section>
-            
-            <aside id="evaluation-panel" class="lg:col-span-1 bg-white p-4 rounded-lg shadow-lg hidden h-fit lg:sticky lg:top-6">
+
+            <aside id="evaluation-panel" class="lg:col-span-1 bg-white p-4 rounded-lg shadow-lg hidden h-fit lg:sticky lg:top-4">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h2 class="text-xl font-bold">Avaliação</h2>
-                    <button id="new-correction-btn" title="Nova Correção (F5)" class="p-1.5 rounded-full hover:bg-gray-200 transition-colors">
+                    <h2 class="text-lg font-bold">Avaliacao</h2>
+                    <button id="new-correction-btn" title="Nova Correcao (F5)" class="p-1.5 rounded-full hover:bg-gray-200 transition-colors">
                         <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
                     </button>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-3">
+                    <!-- Selecao de Aluno (Dropdown) -->
                     <div>
-                        <label for="student-name" class="block font-semibold mb-1 text-sm">Aluno (da Planilha):</label>
-                        <div class="relative" id="student-name-container">
-                            <input type="text" id="student-name" placeholder="Selecione o aluno..." class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm" autocomplete="off">
-                            <input type="hidden" id="student-email">
+                        <label for="student-select" class="block font-semibold mb-1 text-sm">Aluno:</label>
+                        <select id="student-select" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm pr-8 bg-white">
+                            <option value="">-- Selecione o aluno --</option>
+                        </select>
+                        <input type="hidden" id="student-email">
+                    </div>
+
+                    <!-- Numero da Aula -->
+                    <div>
+                        <label for="lesson-number" class="block font-semibold mb-1 text-sm">Numero da Aula:</label>
+                        <input type="number" id="lesson-number" min="1" placeholder="Ex: 1, 2, 3..." class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+
+                    <!-- Tema -->
+                    <div>
+                        <label for="lesson-theme" class="block font-semibold mb-1 text-sm">Tema da Redacao:</label>
+                        <input type="text" id="lesson-theme" placeholder="Ex: Saude mental no Brasil" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+
+                    <!-- Historico do Aluno (aparece ao selecionar) -->
+                    <div id="student-history-section" class="hidden">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-semibold text-sm text-blue-800">Historico</span>
+                                <span id="history-count" class="history-badge">0 redacoes</span>
+                            </div>
+                            <div id="history-list" class="text-xs space-y-1 max-h-32 overflow-y-auto"></div>
+                            <div id="history-chart-container" class="mt-2 hidden">
+                                <canvas id="history-mini-chart" height="100"></canvas>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- Pasta de Destino -->
                     <div>
-                        <label for="lesson-name" class="block font-semibold mb-1 text-sm">Aula / Tema:</label>
-                        <input type="text" id="lesson-name" placeholder="Ex: Aula 05 - Modernismo" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                        <label for="folder-select" class="block font-semibold mb-1 text-sm">Salvar em:</label>
+                        <div class="flex gap-1">
+                            <select id="folder-select" class="flex-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm pr-8 bg-white">
+                                <option value="">Pasta do aluno (padrao)</option>
+                            </select>
+                            <button id="new-folder-btn" title="Criar nova pasta" class="px-2 border rounded-md hover:bg-gray-100 text-gray-600">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            </button>
+                        </div>
                     </div>
-                    
-                    <!-- Competências -->
-                    <div class="competency border-t pt-3"><label class="block font-semibold text-sm">Competência I</label><p class="text-xs text-gray-500 mb-1">Domínio da norma culta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c1" value="0"></div>
-                    <div class="competency"><label class="block font-semibold text-sm">Competência II</label><p class="text-xs text-gray-500 mb-1">Compreensão da proposta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c2" value="0"></div>
-                    <div class="competency"><label class="block font-semibold text-sm">Competência III</label><p class="text-xs text-gray-500 mb-1">Organizar informações.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c3" value="0"></div>
-                    <div class="competency"><label class="block font-semibold text-sm">Competência IV</label><p class="text-xs text-gray-500 mb-1">Mecanismos linguísticos.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c4" value="0"></div>
-                    <div class="competency"><label class="block font-semibold text-sm">Competência V</label><p class="text-xs text-gray-500 mb-1">Proposta de intervenção.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c5" value="0"></div>
+
+                    <!-- Competencias -->
+                    <div class="competency border-t pt-3"><label class="block font-semibold text-sm">Competencia I</label><p class="text-xs text-gray-500 mb-1">Dominio da norma culta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c1" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competencia II</label><p class="text-xs text-gray-500 mb-1">Compreensao da proposta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c2" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competencia III</label><p class="text-xs text-gray-500 mb-1">Organizar informacoes.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c3" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competencia IV</label><p class="text-xs text-gray-500 mb-1">Mecanismos linguisticos.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c4" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competencia V</label><p class="text-xs text-gray-500 mb-1">Proposta de intervencao.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c5" value="0"></div>
 
                     <div class="pt-2 border-t"><h3 class="text-lg font-bold">Nota Final: <span id="final-score" class="text-blue-600">0</span></h3></div>
-                    
+
                     <div class="flex flex-col gap-2 pt-2">
                         <button id="save-finalize-btn" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 shadow-md" disabled>
                             FINALIZAR E ENVIAR
                         </button>
                     </div>
-                    <p class="text-center text-xs text-gray-400 pt-2">PROJETO JOHNNY VERSÃO 2.0 (WEB APP)</p>
+                    <p class="text-center text-xs text-gray-400 pt-2">PROJETO JOHNNY VERSAO 2.0 (WEB APP)</p>
                 </div>
             </aside>
         </main>
     </div>
-    
+
     <div id="highlighter-toolbar" class="hidden fixed bottom-4 right-1/2 translate-x-1/2 z-40 bg-white p-2 rounded-full shadow-lg flex flex-row items-center gap-3">
         <button id="cursor-tool" class="tool-selector p-1.5 rounded-full border-2 border-gray-200 transition-transform active" data-tool="cursor" title="Navegar"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.6,15.5l-3.2,2.1c-0.2,0.1-0.5,0.1-0.7-0.1l-1.4-1.4c-0.2-0.2-0.2-0.5,0-0.7l2.1-3.2L15.5,0.6c0.2-0.2,0.5-0.2,0.7,0l3.2,3.2c0.2,0.2,0.2,0.5,0,0.7L6.6,15.5z M4.7,13.1l-0.7,1.1l0.7,0.7l1.1-0.7L4.7,13.1z"/></svg></button>
         <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(255, 255, 0, 0.4)" style="background-color: yellow;" title="Marca-texto Amarelo"></button>
@@ -115,173 +152,596 @@
     <div id="panel-overlay" class="lg:hidden"></div>
     <div id="alert-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h3 id="alert-title" class="text-xl font-bold mb-4 text-center">Atenção</h3>
+            <h3 id="alert-title" class="text-xl font-bold mb-4 text-center">Atencao</h3>
             <div id="alert-content" class="text-gray-700 mb-6 text-left text-sm whitespace-pre-wrap max-h-[60vh] overflow-y-auto"></div>
             <div class="flex justify-center"><button id="alert-close" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">OK</button></div>
         </div>
     </div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
-        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
         // Elementos DOM
         const els = {
-            fileUpload: document.getElementById('file-upload'), fileNameSpan: document.getElementById('file-name'), essayViewer: document.getElementById('essay-viewer'), zoomTarget: document.getElementById('zoom-target'), dropZone: document.getElementById('drop-zone'), evaluationPanel: document.getElementById('evaluation-panel'), saveFinalizeBtn: document.getElementById('save-finalize-btn'), clearAnnotationsBtn: document.getElementById('clear-annotations'), panelToggleButton: document.getElementById('panel-toggle-button'), panelOverlay: document.getElementById('panel-overlay'), highlighterToolbar: document.getElementById('highlighter-toolbar'), studentNameInput: document.getElementById('student-name'), studentNameContainer: document.getElementById('student-name-container'), studentEmailInput: document.getElementById('student-email'), lessonNameInput: document.getElementById('lesson-name'), newCorrectionBtn: document.getElementById('new-correction-btn'), pageHeader: document.getElementById('page-header'), fileSelectorBar: document.getElementById('file-selector-bar'), alertModal: document.getElementById('alert-modal'), alertTitle: document.getElementById('alert-title'), alertContent: document.getElementById('alert-content'), alertClose: document.getElementById('alert-close'), loadingStudents: document.getElementById('loading-students')
+            fileUpload: document.getElementById('file-upload'),
+            fileNameSpan: document.getElementById('file-name'),
+            essayViewer: document.getElementById('essay-viewer'),
+            zoomTarget: document.getElementById('zoom-target'),
+            dropZone: document.getElementById('drop-zone'),
+            evaluationPanel: document.getElementById('evaluation-panel'),
+            saveFinalizeBtn: document.getElementById('save-finalize-btn'),
+            clearAnnotationsBtn: document.getElementById('clear-annotations'),
+            panelToggleButton: document.getElementById('panel-toggle-button'),
+            panelOverlay: document.getElementById('panel-overlay'),
+            highlighterToolbar: document.getElementById('highlighter-toolbar'),
+            studentSelect: document.getElementById('student-select'),
+            studentEmailInput: document.getElementById('student-email'),
+            lessonNumber: document.getElementById('lesson-number'),
+            lessonTheme: document.getElementById('lesson-theme'),
+            folderSelect: document.getElementById('folder-select'),
+            newFolderBtn: document.getElementById('new-folder-btn'),
+            newCorrectionBtn: document.getElementById('new-correction-btn'),
+            pageHeader: document.getElementById('page-header'),
+            fileSelectorBar: document.getElementById('file-selector-bar'),
+            alertModal: document.getElementById('alert-modal'),
+            alertTitle: document.getElementById('alert-title'),
+            alertContent: document.getElementById('alert-content'),
+            alertClose: document.getElementById('alert-close'),
+            loadingStatus: document.getElementById('loading-status'),
+            historySection: document.getElementById('student-history-section'),
+            historyCount: document.getElementById('history-count'),
+            historyList: document.getElementById('history-list'),
+            historyChartContainer: document.getElementById('history-chart-container')
         };
 
         // Estado Global
-        let studentsList = []; 
+        let studentsList = [];
+        let foldersList = [];
+        let currentHistory = [];
+        let miniChart = null;
         let activeColor = 'rgba(255, 255, 0, 0.4)';
         let highlighterEnabled = false;
         let isDrawing = false;
         let scale = 1, panX = 0, panY = 0;
         let isPanning = false, startPanX, startPanY, isPinching = false, startPinchDist;
+        let fileLoaded = false;
+        let originalFile = null; // Guarda o arquivo original para conversao
 
-        // --- Inicialização ---
+        // --- Inicializacao ---
         window.onload = function() {
-            // Busca dados da Planilha ao iniciar
-            google.script.run.withSuccessHandler(function(data) {
-                studentsList = data;
-                els.loadingStudents.textContent = "Lista de alunos carregada!";
-                setTimeout(() => els.loadingStudents.style.display = 'none', 2000);
-            }).withFailureHandler(function(err) {
-                els.loadingStudents.textContent = "Erro ao carregar alunos.";
-                showAlert('Erro', 'Não foi possível carregar a lista de alunos da planilha.\nVerifique se a aba DADOS existe.');
-            }).getStudentsFromSheet();
+            let loadedCount = 0;
+            const totalLoads = 2;
+
+            function checkAllLoaded() {
+                loadedCount++;
+                if (loadedCount >= totalLoads) {
+                    els.loadingStatus.textContent = 'Tudo pronto!';
+                    setTimeout(() => els.loadingStatus.style.display = 'none', 1500);
+                }
+            }
+
+            // Carregar lista de alunos
+            google.script.run
+                .withSuccessHandler(function(data) {
+                    studentsList = data;
+                    populateStudentDropdown();
+                    els.loadingStatus.textContent = 'Alunos carregados. Carregando pastas...';
+                    checkAllLoaded();
+                })
+                .withFailureHandler(function(err) {
+                    els.loadingStatus.textContent = 'Erro ao carregar alunos.';
+                    showAlert('Erro', 'Nao foi possivel carregar a lista de alunos da planilha.\nVerifique se a aba DADOS existe.');
+                    checkAllLoaded();
+                })
+                .getStudentsFromSheet();
+
+            // Carregar pastas do Drive
+            google.script.run
+                .withSuccessHandler(function(data) {
+                    foldersList = data;
+                    populateFolderDropdown();
+                    checkAllLoaded();
+                })
+                .withFailureHandler(function(err) {
+                    checkAllLoaded();
+                })
+                .getDriveFolders();
         };
 
-        els.newCorrectionBtn.addEventListener('click', () => {
-            google.script.run.withSuccessHandler(function(url){
-                 window.open(url, '_top');
-            }).getScriptUrl(); // Necessário criar func no backend ou apenas recarregar:
-            location.reload(); 
+        // --- Dropdown de Alunos ---
+        function populateStudentDropdown() {
+            els.studentSelect.innerHTML = '<option value="">-- Selecione o aluno --</option>';
+            studentsList.forEach((student, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = student.name;
+                els.studentSelect.appendChild(option);
+            });
+        }
+
+        // Ao selecionar um aluno, carregar historico
+        els.studentSelect.addEventListener('change', function() {
+            const idx = this.value;
+            if (idx === '') {
+                els.studentEmailInput.value = '';
+                els.historySection.classList.add('hidden');
+                currentHistory = [];
+                return;
+            }
+
+            const student = studentsList[idx];
+            els.studentEmailInput.value = student.email;
+
+            // Buscar historico do aluno
+            els.loadingStatus.style.display = '';
+            els.loadingStatus.textContent = 'Carregando historico de ' + student.name + '...';
+
+            google.script.run
+                .withSuccessHandler(function(history) {
+                    currentHistory = history;
+                    displayStudentHistory(history);
+                    els.loadingStatus.style.display = 'none';
+                })
+                .withFailureHandler(function(err) {
+                    els.loadingStatus.textContent = 'Erro ao carregar historico.';
+                    setTimeout(() => els.loadingStatus.style.display = 'none', 2000);
+                })
+                .getStudentHistory(student.name);
         });
 
-        // --- Lógica Autocomplete Alunos ---
-        const suggestionsContainer = document.createElement('div');
-        suggestionsContainer.className = 'absolute z-20 w-full bg-white border border-gray-300 rounded-md mt-1 hidden max-h-48 overflow-y-auto shadow-lg';
-        els.studentNameContainer.appendChild(suggestionsContainer);
+        function displayStudentHistory(history) {
+            if (history.length === 0) {
+                els.historySection.classList.remove('hidden');
+                els.historyCount.textContent = 'Nenhuma redacao';
+                els.historyList.innerHTML = '<p class="text-gray-500 italic">Primeiro registro deste aluno.</p>';
+                els.historyChartContainer.classList.add('hidden');
+                return;
+            }
 
-        function filterStudents() {
-            const val = els.studentNameInput.value.toLowerCase();
-            const filtered = studentsList.filter(s => s.name.toLowerCase().includes(val));
-            suggestionsContainer.innerHTML = '';
-            
-            if (filtered.length > 0) {
-                filtered.forEach(student => {
-                    const div = document.createElement('div');
-                    div.className = 'p-2 cursor-pointer hover:bg-gray-100 text-sm suggestion-item';
-                    div.textContent = student.name;
-                    div.onclick = () => {
-                        els.studentNameInput.value = student.name;
-                        els.studentEmailInput.value = student.email;
-                        suggestionsContainer.classList.add('hidden');
-                    };
-                    suggestionsContainer.appendChild(div);
-                });
-                suggestionsContainer.classList.remove('hidden');
+            els.historySection.classList.remove('hidden');
+            els.historyCount.textContent = history.length + ' redacao' + (history.length > 1 ? 'es' : '');
+
+            // Lista de historico
+            let listHtml = '';
+            history.forEach(h => {
+                const scoreColor = h.total >= 800 ? 'text-green-700' : h.total >= 500 ? 'text-yellow-700' : 'text-red-700';
+                listHtml += '<div class="flex justify-between items-center py-1 border-b border-blue-100 last:border-0">' +
+                    '<span class="text-gray-700">Aula ' + h.lessonNumber + ' <span class="text-gray-400">(' + h.date + ')</span></span>' +
+                    '<span class="font-bold ' + scoreColor + '">' + h.total + '</span>' +
+                    '</div>';
+            });
+            els.historyList.innerHTML = listHtml;
+
+            // Mini grafico
+            if (history.length >= 2) {
+                els.historyChartContainer.classList.remove('hidden');
+                renderMiniChart(history);
             } else {
-                suggestionsContainer.classList.add('hidden');
+                els.historyChartContainer.classList.add('hidden');
             }
         }
 
-        els.studentNameInput.addEventListener('input', filterStudents);
-        els.studentNameInput.addEventListener('focus', () => {
-            if(studentsList.length > 0) filterStudents();
-        });
-        document.addEventListener('click', (e) => {
-            if (!els.studentNameContainer.contains(e.target)) suggestionsContainer.classList.add('hidden');
+        function renderMiniChart(history) {
+            const ctx = document.getElementById('history-mini-chart').getContext('2d');
+            if (miniChart) miniChart.destroy();
+
+            miniChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: history.map(h => 'Aula ' + h.lessonNumber),
+                    datasets: [{
+                        label: 'Nota',
+                        data: history.map(h => h.total),
+                        borderColor: '#1e40af',
+                        backgroundColor: 'rgba(30, 64, 175, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#1e40af'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { min: 0, max: 1000, ticks: { stepSize: 200, font: { size: 9 } } },
+                        x: { ticks: { font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        // --- Dropdown de Pastas ---
+        function populateFolderDropdown() {
+            els.folderSelect.innerHTML = '<option value="">Pasta do aluno (padrao)</option>';
+            foldersList.forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder.id;
+                option.textContent = folder.name;
+                els.folderSelect.appendChild(option);
+            });
+        }
+
+        // Criar nova pasta
+        els.newFolderBtn.addEventListener('click', function() {
+            const folderName = prompt('Nome da nova pasta:');
+            if (!folderName || !folderName.trim()) return;
+
+            els.loadingStatus.style.display = '';
+            els.loadingStatus.textContent = 'Criando pasta...';
+
+            google.script.run
+                .withSuccessHandler(function(newFolder) {
+                    foldersList.push(newFolder);
+                    populateFolderDropdown();
+                    // Selecionar a nova pasta
+                    els.folderSelect.value = newFolder.id;
+                    els.loadingStatus.style.display = 'none';
+                })
+                .withFailureHandler(function(err) {
+                    showAlert('Erro', 'Nao foi possivel criar a pasta.');
+                    els.loadingStatus.style.display = 'none';
+                })
+                .createNewFolder(folderName.trim());
         });
 
-        // --- Lógica de Upload e Visualização ---
+        // Nova correcao
+        els.newCorrectionBtn.addEventListener('click', () => { location.reload(); });
+
+        // --- Upload e Visualizacao ---
+        // Drag and drop
+        els.essayViewer.addEventListener('dragover', (e) => { e.preventDefault(); });
+        els.essayViewer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+
         els.fileUpload.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+        /**
+         * Processa o arquivo carregado.
+         * Imagens sao automaticamente convertidas para PDF (renderizadas via canvas no viewer).
+         * Decisao tecnica: Imagens sao convertidas para PDF internamente para que as
+         * ferramentas de anotacao (highlight) funcionem melhor e o resultado final
+         * seja sempre um PDF uniforme.
+         */
         async function handleFile(file) {
+            originalFile = file;
+            els.fileNameSpan.textContent = file.name;
             els.pageHeader.classList.add('hidden');
             els.fileSelectorBar.classList.add('hidden');
-            els.zoomTarget.innerHTML = '<p class="text-center p-8">Carregando...</p>';
-            els.evaluationPanel.classList.remove('hidden'); 
-            els.panelToggleButton.classList.remove('hidden'); 
+            els.zoomTarget.innerHTML = '<p class="text-center p-8 text-gray-500">Carregando...</p>';
+            els.evaluationPanel.classList.remove('hidden');
+            els.panelToggleButton.classList.remove('hidden');
             els.highlighterToolbar.classList.remove('hidden');
             els.saveFinalizeBtn.disabled = false;
+            fileLoaded = true;
             closeMobilePanel();
             scale = 1; panX = 0; panY = 0; updateTransform();
 
-            if (file.type.startsWith('image/')) renderImage(file);
-            else if (file.type === 'application/pdf') await renderPdf(file);
-            else els.zoomTarget.innerHTML = `<p class="text-center p-8 text-red-500">Formato não suportado.</p>`;
+            if (file.type === 'application/pdf') {
+                await renderPdf(file);
+            } else if (file.type.startsWith('image/')) {
+                // Imagens: renderizar como canvas (mesma forma que PDF renderiza)
+                // Isso garante que a anotacao funcione uniformemente
+                await renderImageAsPdfCanvas(file);
+            } else {
+                els.zoomTarget.innerHTML = '<p class="text-center p-8 text-red-500">Formato nao suportado. Use PDF ou imagem (JPG, PNG).</p>';
+            }
         }
 
-        // ... (Funções de renderImage, renderPdf, createPageContainer mantidas idênticas ao código anterior) ...
-        function renderImage(file) { const reader = new FileReader(); reader.onload = (e) => { els.zoomTarget.innerHTML = ''; const container = createPageContainer(); const img = document.createElement('img'); img.src = e.target.result; img.className = 'page-content'; img.onload = () => setupCanvasForContainer(container, img.naturalWidth, img.naturalHeight); container.appendChild(img); els.zoomTarget.appendChild(container); }; reader.readAsDataURL(file); }
-        async function renderPdf(file) { els.zoomTarget.innerHTML = ''; const fileReader = new FileReader(); fileReader.onload = async function() { const typedarray = new Uint8Array(this.result); const pdf = await pdfjsLib.getDocument(typedarray).promise; for (let i = 1; i <= pdf.numPages; i++) { const page = await pdf.getPage(i); const viewport = page.getViewport({ scale: 1.5 }); const container = createPageContainer(); const canvas = document.createElement('canvas'); canvas.className = 'page-content'; const context = canvas.getContext('2d'); canvas.height = viewport.height; canvas.width = viewport.width; await page.render({ canvasContext: context, viewport: viewport }).promise; container.appendChild(canvas); els.zoomTarget.appendChild(container); setupCanvasForContainer(container, viewport.width, viewport.height); } }; fileReader.readAsArrayBuffer(file); }
-        function createPageContainer() { const container = document.createElement('div'); container.className = 'page-container'; return container; }
+        /**
+         * Renderiza uma imagem no viewer como canvas (mesmo formato usado pelo PDF).
+         * Converte internamente para que a geracao final de PDF funcione.
+         */
+        function renderImageAsPdfCanvas(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        els.zoomTarget.innerHTML = '';
+                        const container = createPageContainer();
 
-        // --- Lógica de Zoom, Pan e Marca Texto (Mantida igual para preservar a UX) ---
-        function updateTransform() { els.zoomTarget.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`; }
-        els.essayViewer.addEventListener('mousedown', (e) => { if (highlighterEnabled) return; isPanning = true; startPanX = e.clientX - panX; startPanY = e.clientY - panY; els.essayViewer.style.cursor = 'grabbing'; });
-        els.essayViewer.addEventListener('mousemove', (e) => { if (!isPanning) return; panX = e.clientX - startPanX; panY = e.clientY - startPanY; updateTransform(); });
+                        // Renderizar imagem em canvas (como o PDF faz)
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'page-content';
+
+                        // Escalar para boa resolucao, similar ao PDF scale 1.5
+                        const maxWidth = 900;
+                        let drawWidth = img.naturalWidth;
+                        let drawHeight = img.naturalHeight;
+
+                        if (drawWidth > maxWidth) {
+                            const ratio = maxWidth / drawWidth;
+                            drawWidth = maxWidth;
+                            drawHeight = Math.round(img.naturalHeight * ratio);
+                        }
+
+                        canvas.width = drawWidth;
+                        canvas.height = drawHeight;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
+
+                        container.appendChild(canvas);
+                        els.zoomTarget.appendChild(container);
+                        setupCanvasForContainer(container, drawWidth, drawHeight);
+                        resolve();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function renderPdf(file) {
+            els.zoomTarget.innerHTML = '';
+            return new Promise((resolve) => {
+                const fileReader = new FileReader();
+                fileReader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: 1.5 });
+                        const container = createPageContainer();
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'page-content';
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+                        container.appendChild(canvas);
+                        els.zoomTarget.appendChild(container);
+                        setupCanvasForContainer(container, viewport.width, viewport.height);
+                    }
+                    resolve();
+                };
+                fileReader.readAsArrayBuffer(file);
+            });
+        }
+
+        function createPageContainer() {
+            const container = document.createElement('div');
+            container.className = 'page-container';
+            return container;
+        }
+
+        // --- Zoom, Pan e Marca Texto ---
+        function updateTransform() { els.zoomTarget.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + scale + ')'; }
+
+        els.essayViewer.addEventListener('mousedown', (e) => {
+            if (highlighterEnabled) return;
+            isPanning = true;
+            startPanX = e.clientX - panX;
+            startPanY = e.clientY - panY;
+            els.essayViewer.style.cursor = 'grabbing';
+        });
+        els.essayViewer.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            panX = e.clientX - startPanX;
+            panY = e.clientY - startPanY;
+            updateTransform();
+        });
         const endPan = () => { isPanning = false; els.essayViewer.style.cursor = 'grab'; };
-        els.essayViewer.addEventListener('mouseup', endPan); els.essayViewer.addEventListener('mouseleave', endPan);
-        els.essayViewer.addEventListener('wheel', (e) => { e.preventDefault(); const rect = els.essayViewer.getBoundingClientRect(); const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top; const zoomFactor = e.deltaY * -0.005; const newScale = Math.max(0.5, Math.min(5, scale + zoomFactor)); panX -= (mouseX - panX) * (newScale / scale - 1); panY -= (mouseY - panY) * (newScale / scale - 1); scale = newScale; updateTransform(); });
-        
+        els.essayViewer.addEventListener('mouseup', endPan);
+        els.essayViewer.addEventListener('mouseleave', endPan);
+        els.essayViewer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = els.essayViewer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const zoomFactor = e.deltaY * -0.005;
+            const newScale = Math.max(0.5, Math.min(5, scale + zoomFactor));
+            panX -= (mouseX - panX) * (newScale / scale - 1);
+            panY -= (mouseY - panY) * (newScale / scale - 1);
+            scale = newScale;
+            updateTransform();
+        });
+
+        // Touch (mobile pinch zoom)
+        els.essayViewer.addEventListener('touchstart', (e) => {
+            if (highlighterEnabled) return;
+            if (e.touches.length === 2) {
+                isPinching = true;
+                startPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            } else if (e.touches.length === 1) {
+                isPanning = true;
+                startPanX = e.touches[0].clientX - panX;
+                startPanY = e.touches[0].clientY - panY;
+            }
+        }, { passive: true });
+        els.essayViewer.addEventListener('touchmove', (e) => {
+            if (highlighterEnabled) return;
+            if (isPinching && e.touches.length === 2) {
+                const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                const newScale = Math.max(0.5, Math.min(5, scale * (dist / startPinchDist)));
+                scale = newScale;
+                startPinchDist = dist;
+                updateTransform();
+            } else if (isPanning && e.touches.length === 1) {
+                panX = e.touches[0].clientX - startPanX;
+                panY = e.touches[0].clientY - startPanY;
+                updateTransform();
+            }
+        }, { passive: true });
+        els.essayViewer.addEventListener('touchend', () => { isPanning = false; isPinching = false; });
+
         function setupCanvasForContainer(container, width, height) {
-            const annotationCanvas = document.createElement('canvas'); annotationCanvas.className = 'annotation-canvas'; annotationCanvas.width = width; annotationCanvas.height = height; container.appendChild(annotationCanvas);
-            const ctx = annotationCanvas.getContext('2d'); ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.lineWidth = 15;
+            const annotationCanvas = document.createElement('canvas');
+            annotationCanvas.className = 'annotation-canvas';
+            annotationCanvas.width = width;
+            annotationCanvas.height = height;
+            container.appendChild(annotationCanvas);
+
+            const ctx = annotationCanvas.getContext('2d');
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'butt';
+            ctx.lineWidth = 15;
+
             let firstClickPoint = null;
-            const getPointOnCanvas = (e) => { const clientX = e.clientX || e.touches[0].clientX, clientY = e.clientY || e.touches[0].clientY; const rect = annotationCanvas.getBoundingClientRect(); return { x: (clientX - rect.left) / (rect.width / annotationCanvas.width), y: (clientY - rect.top) / (rect.height / annotationCanvas.height) }; };
-            const handleHighlightClick = (e) => { if (!highlighterEnabled) return; const currentPoint = getPointOnCanvas(e); if (!firstClickPoint) { firstClickPoint = currentPoint; } else { ctx.strokeStyle = activeColor; ctx.beginPath(); ctx.moveTo(firstClickPoint.x, firstClickPoint.y); ctx.lineTo(currentPoint.x, firstClickPoint.y); ctx.stroke(); firstClickPoint = null; } };
+
+            const getPointOnCanvas = (e) => {
+                const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX) || (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY) || (e.touches && e.touches[0].clientY);
+                const rect = annotationCanvas.getBoundingClientRect();
+                return {
+                    x: (clientX - rect.left) / (rect.width / annotationCanvas.width),
+                    y: (clientY - rect.top) / (rect.height / annotationCanvas.height)
+                };
+            };
+
+            const handleHighlightClick = (e) => {
+                if (!highlighterEnabled) return;
+                const currentPoint = getPointOnCanvas(e);
+                if (!firstClickPoint) {
+                    firstClickPoint = currentPoint;
+                } else {
+                    ctx.strokeStyle = activeColor;
+                    ctx.beginPath();
+                    ctx.moveTo(firstClickPoint.x, firstClickPoint.y);
+                    ctx.lineTo(currentPoint.x, firstClickPoint.y);
+                    ctx.stroke();
+                    firstClickPoint = null;
+                }
+            };
+
             annotationCanvas.addEventListener('click', handleHighlightClick);
-            annotationCanvas.addEventListener('touchend', (e) => { if(highlighterEnabled) { e.preventDefault(); handleHighlightClick(e); } }, { passive: false });
+            annotationCanvas.addEventListener('touchend', (e) => {
+                if (highlighterEnabled) { e.preventDefault(); handleHighlightClick(e); }
+            }, { passive: false });
             annotationCanvas.addEventListener('resetHighlightState', () => { firstClickPoint = null; });
         }
-        
-        const toolSelectors = document.querySelectorAll('.tool-selector');
-        toolSelectors.forEach(button => { button.addEventListener('click', () => { const resetEvent = new Event('resetHighlightState'); document.querySelectorAll('.annotation-canvas').forEach(c => c.dispatchEvent(resetEvent)); toolSelectors.forEach(btn => btn.classList.remove('active')); button.classList.add('active'); if (button.dataset.color) { activeColor = button.dataset.color; highlighterEnabled = true; els.essayViewer.classList.add('highlighter-cursor', 'active'); els.essayViewer.style.cursor = ''; } else { highlighterEnabled = false; els.essayViewer.classList.remove('highlighter-cursor', 'active'); els.essayViewer.style.cursor = 'grab'; } }); });
-        els.clearAnnotationsBtn.addEventListener('click', () => { document.querySelectorAll('.annotation-canvas').forEach(canvas => canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)); });
 
-        // --- Lógica de Notas ---
+        // Tool selectors
+        const toolSelectors = document.querySelectorAll('.tool-selector');
+        toolSelectors.forEach(button => {
+            button.addEventListener('click', () => {
+                const resetEvent = new Event('resetHighlightState');
+                document.querySelectorAll('.annotation-canvas').forEach(c => c.dispatchEvent(resetEvent));
+                toolSelectors.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                if (button.dataset.color) {
+                    activeColor = button.dataset.color;
+                    highlighterEnabled = true;
+                    els.essayViewer.classList.add('highlighter-cursor', 'active');
+                    els.essayViewer.style.cursor = '';
+                } else {
+                    highlighterEnabled = false;
+                    els.essayViewer.classList.remove('highlighter-cursor', 'active');
+                    els.essayViewer.style.cursor = 'grab';
+                }
+            });
+        });
+        els.clearAnnotationsBtn.addEventListener('click', () => {
+            document.querySelectorAll('.annotation-canvas').forEach(canvas =>
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+            );
+        });
+
+        // --- Logica de Notas ---
         const finalScoreSpan = document.getElementById('final-score');
-        document.querySelectorAll('.score-selector').forEach(container => { container.addEventListener('click', (e) => { if (e.target.classList.contains('score-button')) { const button = e.target; button.parentElement.nextElementSibling.value = button.dataset.score; container.querySelectorAll('.score-button').forEach(sib => sib.classList.remove('selected-score')); button.classList.add('selected-score'); calculateTotal(); } }); });
-        function calculateTotal() { let total = 0; document.querySelectorAll('.competency-score').forEach(input => { total += Number(input.value) || 0; }); finalScoreSpan.textContent = total; }
+        document.querySelectorAll('.score-selector').forEach(container => {
+            container.addEventListener('click', (e) => {
+                if (e.target.classList.contains('score-button')) {
+                    const button = e.target;
+                    button.parentElement.nextElementSibling.value = button.dataset.score;
+                    container.querySelectorAll('.score-button').forEach(sib => sib.classList.remove('selected-score'));
+                    button.classList.add('selected-score');
+                    calculateTotal();
+                }
+            });
+        });
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('.competency-score').forEach(input => { total += Number(input.value) || 0; });
+            finalScoreSpan.textContent = total;
+        }
 
         // --- Modals e UI ---
-        function showAlert(title, content) { els.alertTitle.textContent = title; els.alertContent.innerHTML = content; els.alertModal.classList.remove('hidden'); }
+        function showAlert(title, content) {
+            els.alertTitle.textContent = title;
+            els.alertContent.innerHTML = content;
+            els.alertModal.classList.remove('hidden');
+        }
         els.alertClose.addEventListener('click', () => els.alertModal.classList.add('hidden'));
-        function closeMobilePanel() { els.evaluationPanel.classList.remove('is-open'); els.panelOverlay.classList.remove('is-active'); }
-        els.panelToggleButton.addEventListener('click', () => { const isOpen = els.evaluationPanel.classList.toggle('is-open'); els.panelOverlay.classList.toggle('is-active', isOpen); });
+        function closeMobilePanel() {
+            els.evaluationPanel.classList.remove('is-open');
+            els.panelOverlay.classList.remove('is-active');
+        }
+        els.panelToggleButton.addEventListener('click', () => {
+            const isOpen = els.evaluationPanel.classList.toggle('is-open');
+            els.panelOverlay.classList.toggle('is-active', isOpen);
+        });
         els.panelOverlay.addEventListener('click', closeMobilePanel);
+
+        // F5 = nova correcao
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5') { e.preventDefault(); location.reload(); }
+        });
 
         // --- SALVAR E ENVIAR ---
         els.saveFinalizeBtn.addEventListener('click', async () => {
-            const studentName = els.studentNameInput.value.trim();
+            // Validacoes
+            const studentIdx = els.studentSelect.value;
+            if (studentIdx === '') { showAlert('Atencao', 'Selecione um aluno da lista.'); return; }
+
+            const student = studentsList[studentIdx];
+            const studentName = student.name;
             const studentEmail = els.studentEmailInput.value.trim();
-            const lessonName = els.lessonNameInput.value.trim();
+            const lessonNumber = els.lessonNumber.value.trim();
+            const lessonTheme = els.lessonTheme.value.trim();
 
-            if (!studentName) { showAlert('Atenção', 'Selecione um aluno da lista.'); return; }
-            if (!lessonName) { showAlert('Atenção', 'Informe qual é a aula/tema.'); return; }
+            if (!lessonNumber) { showAlert('Atencao', 'Informe o numero da aula.'); return; }
+            if (!lessonTheme) { showAlert('Atencao', 'Informe o tema da redacao.'); return; }
 
+            // Coletar notas
+            const scores = {
+                c1: Number(document.getElementById('c1').value) || 0,
+                c2: Number(document.getElementById('c2').value) || 0,
+                c3: Number(document.getElementById('c3').value) || 0,
+                c4: Number(document.getElementById('c4').value) || 0,
+                c5: Number(document.getElementById('c5').value) || 0,
+                total: Number(finalScoreSpan.textContent) || 0
+            };
+
+            const folderId = els.folderSelect.value || '';
+
+            // UI de processamento
             els.highlighterToolbar.style.display = 'none';
             els.saveFinalizeBtn.disabled = true;
             els.saveFinalizeBtn.textContent = 'Processando...';
-            showAlert('Aguarde', 'Gerando PDF e enviando para o servidor...');
+            showAlert('Aguarde', 'Gerando PDF com anotacoes...');
 
-            // 1. Gerar PDF usando jsPDF
-            await new Promise(r => setTimeout(r, 100)); // UI refresh
+            await new Promise(r => setTimeout(r, 100));
+
+            // Reset zoom para captura
             const originalTransform = els.zoomTarget.style.transform;
-            els.zoomTarget.style.transform = ''; // Reset zoom para captura
-            
-            const mainCanvas = await html2canvas(document.getElementById('main-content'), { scale: 1.5, useCORS: true, logging: false });
+            els.zoomTarget.style.transform = '';
+
+            // Capturar apenas o viewer (sem o painel lateral)
+            const viewerEl = document.getElementById('essay-viewer');
+            const mainCanvas = await html2canvas(viewerEl, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
             els.zoomTarget.style.transform = originalTransform;
 
+            // Gerar PDF
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
-            
+
             const imgData = mainCanvas.toDataURL('image/png');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const imgProps = pdf.getImageProperties(imgData);
             const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            let heightLeft = imgHeight; let position = 0;
-            
+            let heightLeft = imgHeight;
+            let position = 0;
+
             pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
             heightLeft -= pdf.internal.pageSize.getHeight();
             while (heightLeft > 0) {
@@ -291,33 +751,73 @@
                 heightLeft -= pdf.internal.pageSize.getHeight();
             }
 
-            // Nota: Histórico completo via gráfico depende de salvar as notas na planilha (passo futuro).
-            // Por enquanto, salvamos o PDF da correção atual.
+            // Adicionar pagina com resumo da nota
+            pdf.addPage();
+            pdf.setFontSize(20);
+            pdf.setTextColor(30, 64, 175);
+            pdf.text('Correcao da Redacao - Aula ' + lessonNumber, 20, 40);
+            pdf.setFontSize(12);
+            pdf.setTextColor(55, 65, 81);
+            pdf.text('Aluno(a): ' + studentName, 20, 65);
+            pdf.text('Tema: ' + lessonTheme, 20, 80);
+            pdf.text('Data: ' + new Date().toLocaleDateString('pt-BR'), 20, 95);
 
-            // 2. Converter PDF para Data URI String (Base64)
+            pdf.setFontSize(14);
+            pdf.text('Notas por Competencia:', 20, 125);
+            pdf.setFontSize(12);
+            const competencias = [
+                'C1 - Dominio da norma culta: ' + scores.c1,
+                'C2 - Compreensao da proposta: ' + scores.c2,
+                'C3 - Organizar informacoes: ' + scores.c3,
+                'C4 - Mecanismos linguisticos: ' + scores.c4,
+                'C5 - Proposta de intervencao: ' + scores.c5
+            ];
+            competencias.forEach((text, i) => { pdf.text(text, 30, 145 + (i * 20)); });
+
+            pdf.setFontSize(18);
+            pdf.setTextColor(30, 64, 175);
+            pdf.text('Nota Final: ' + scores.total + '/1000', 20, 260);
+
+            // Converter PDF para base64
             const pdfOutput = pdf.output('datauristring');
 
-            // 3. Enviar para o Backend Google
-            els.alertContent.textContent = 'Enviando e-mail e salvando no Drive...';
-            
-            google.script.run.withSuccessHandler(function(response) {
-                els.highlighterToolbar.style.display = 'flex';
-                els.saveFinalizeBtn.disabled = false;
-                els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
+            // Enviar para o backend
+            els.alertContent.textContent = 'Salvando no historico, gerando relatorio e enviando e-mail...';
 
-                if (response.success) {
-                    let msg = `PDF Salvo no Drive com sucesso!<br>Link: <a href="${response.url}" target="_blank" class="text-blue-600 underline">Abrir Arquivo</a><br><br>`;
-                    msg += response.emailStatus;
-                    showAlert('Sucesso', msg);
-                } else {
-                    showAlert('Erro', 'Ocorreu um erro no servidor:<br>' + response.error);
-                }
-            }).withFailureHandler(function(err) {
-                els.highlighterToolbar.style.display = 'flex';
-                els.saveFinalizeBtn.disabled = false;
-                els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
-                showAlert('Erro Crítico', 'Falha na comunicação com o Google Apps Script.');
-            }).processCorrection(pdfOutput, studentName, studentEmail, lessonName);
+            google.script.run
+                .withSuccessHandler(function(response) {
+                    els.highlighterToolbar.style.display = 'flex';
+                    els.saveFinalizeBtn.disabled = false;
+                    els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
+
+                    if (response.success) {
+                        let msg = '<strong>PDF salvo no Drive com sucesso!</strong><br>';
+                        msg += '<a href="' + response.url + '" target="_blank" class="text-blue-600 underline">Abrir Arquivo</a><br><br>';
+                        msg += response.emailStatus + '<br>';
+                        msg += response.historyMessage + '<br>';
+                        msg += 'Total de redacoes no historico: ' + response.historyCount;
+                        showAlert('Sucesso!', msg);
+
+                        // Recarregar historico no painel
+                        if (studentIdx !== '') {
+                            google.script.run
+                                .withSuccessHandler(function(history) {
+                                    currentHistory = history;
+                                    displayStudentHistory(history);
+                                })
+                                .getStudentHistory(studentName);
+                        }
+                    } else {
+                        showAlert('Erro', 'Ocorreu um erro no servidor:<br>' + response.error);
+                    }
+                })
+                .withFailureHandler(function(err) {
+                    els.highlighterToolbar.style.display = 'flex';
+                    els.saveFinalizeBtn.disabled = false;
+                    els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
+                    showAlert('Erro Critico', 'Falha na comunicacao com o Google Apps Script.');
+                })
+                .processCorrection(pdfOutput, studentName, studentEmail, Number(lessonNumber), lessonTheme, scores, folderId);
         });
 
     </script>
