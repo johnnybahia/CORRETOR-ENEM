@@ -15,7 +15,8 @@
         .page-container { position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1rem; background-color: white; }
         #essay-viewer { overflow: auto; -webkit-overflow-scrolling: touch; }
         #zoom-target { transform-origin: 0 0; }
-        .annotation-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        .annotation-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        .annotation-canvas.drawing-enabled { pointer-events: auto; touch-action: none; cursor: crosshair; }
         .tool-selector.active { transform: scale(1.15); box-shadow: 0 0 0 3px #3b82f6; }
         .score-button { padding: 0.3rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-weight: 500; transition: all 0.15s; background-color: #f9fafb; color: #374151; flex-grow: 1; }
         .score-button:hover { background-color: #f3f4f6; border-color: #9ca3af; }
@@ -172,7 +173,8 @@
         <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(255, 255, 0, 0.4)" style="background-color: yellow;" title="Amarelo"></button>
         <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(0, 255, 255, 0.4)" style="background-color: cyan;" title="Ciano"></button>
         <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(255, 0, 255, 0.4)" style="background-color: magenta;" title="Magenta"></button>
-        <button id="clear-annotations" class="tool-selector p-1.5 rounded-full border-2 border-gray-200 transition-transform" title="Limpar"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
+        <button id="undo-annotation" class="p-1.5 rounded-full border-2 border-gray-200 transition-transform hover:bg-yellow-50" title="Desfazer (Ctrl+Z)"><svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></button>
+        <button id="clear-annotations" class="p-1.5 rounded-full border-2 border-gray-200 transition-transform hover:bg-red-50" title="Limpar tudo"><svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
         <div class="border-l h-5 mx-1"></div>
         <button id="zoom-out-btn" class="zoom-btn" title="Diminuir">−</button>
         <span id="zoom-level" class="text-xs font-semibold text-gray-600 w-10 text-center">100%</span>
@@ -202,6 +204,7 @@
             evaluationPanel: document.getElementById('evaluation-panel'),
             saveFinalizeBtn: document.getElementById('save-finalize-btn'),
             clearAnnotationsBtn: document.getElementById('clear-annotations'),
+            undoAnnotationBtn: document.getElementById('undo-annotation'),
             panelToggleButton: document.getElementById('panel-toggle-button'),
             panelOverlay: document.getElementById('panel-overlay'),
             highlighterToolbar: document.getElementById('highlighter-toolbar'),
@@ -246,6 +249,7 @@
         let highlighterEnabled = false;
         let scale = 1;
         let fileLoaded = false;
+        let globalUndoStack = [];
 
         // --- DRAWER (Menu escondido) ---
         function openDrawer() { els.drawer.classList.add('open'); els.drawerOverlay.classList.add('active'); }
@@ -451,47 +455,150 @@
         els.zoomOutBtn.addEventListener('click', () => { scale = Math.max(0.5, scale - 0.25); updateZoom(); });
         els.zoomResetBtn.addEventListener('click', () => { scale = 1; updateZoom(); });
 
-        // --- Anotacoes ---
+        // --- Anotacoes (marcador profissional com desenho livre) ---
         function setupAnnotationCanvas(container, width, height) {
             const ac = document.createElement('canvas');
             ac.className = 'annotation-canvas';
             ac.width = width; ac.height = height;
             container.appendChild(ac);
             const ctx = ac.getContext('2d');
-            ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.lineWidth = 15;
-            let firstPoint = null;
+            let strokes = [];
+            let currentStroke = null;
+            let isDrawing = false;
+            let savedImageData = null;
 
             const getPoint = (e) => {
-                const cx = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
-                const cy = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+                let cx, cy;
+                if (e.touches && e.touches.length > 0) {
+                    cx = e.touches[0].clientX; cy = e.touches[0].clientY;
+                } else if (e.changedTouches && e.changedTouches.length > 0) {
+                    cx = e.changedTouches[0].clientX; cy = e.changedTouches[0].clientY;
+                } else {
+                    cx = e.clientX; cy = e.clientY;
+                }
                 const r = ac.getBoundingClientRect();
-                return { x: (cx - r.left) / (r.width / ac.width), y: (cy - r.top) / (r.height / ac.height) };
+                return { x: (cx - r.left) * (ac.width / r.width), y: (cy - r.top) * (ac.height / r.height) };
             };
 
-            const onHighlight = (e) => {
+            function drawStroke(s) {
+                if (s.points.length < 2) return;
+                ctx.save();
+                ctx.strokeStyle = s.color;
+                ctx.lineWidth = s.width;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(s.points[0].x, s.points[0].y);
+                for (let i = 1; i < s.points.length; i++) {
+                    const prev = s.points[i - 1];
+                    const curr = s.points[i];
+                    const mx = (prev.x + curr.x) / 2;
+                    const my = (prev.y + curr.y) / 2;
+                    ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function redrawAll() {
+                ctx.clearRect(0, 0, ac.width, ac.height);
+                strokes.forEach(s => drawStroke(s));
+            }
+
+            function startStroke(e) {
                 if (!highlighterEnabled) return;
+                e.preventDefault();
+                e.stopPropagation();
+                isDrawing = true;
                 const pt = getPoint(e);
-                if (!firstPoint) { firstPoint = pt; }
-                else { ctx.strokeStyle = activeColor; ctx.beginPath(); ctx.moveTo(firstPoint.x, firstPoint.y); ctx.lineTo(pt.x, firstPoint.y); ctx.stroke(); firstPoint = null; }
-            };
+                currentStroke = { color: activeColor, width: 18, points: [pt] };
+                savedImageData = ctx.getImageData(0, 0, ac.width, ac.height);
+            }
 
-            ac.addEventListener('click', onHighlight);
-            ac.addEventListener('touchend', (e) => { if (highlighterEnabled) { e.preventDefault(); onHighlight(e); } }, { passive: false });
-            ac.addEventListener('resetHighlightState', () => { firstPoint = null; });
+            function continueStroke(e) {
+                if (!isDrawing || !currentStroke) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const pt = getPoint(e);
+                currentStroke.points.push(pt);
+                ctx.putImageData(savedImageData, 0, 0);
+                drawStroke(currentStroke);
+            }
+
+            function endStroke(e) {
+                if (!isDrawing || !currentStroke) return;
+                if (e) { e.preventDefault(); e.stopPropagation(); }
+                isDrawing = false;
+                if (currentStroke.points.length >= 2) {
+                    strokes.push(currentStroke);
+                    globalUndoStack.push(ac);
+                } else if (currentStroke.points.length === 1) {
+                    const pt = currentStroke.points[0];
+                    currentStroke.points.push({ x: pt.x + 1, y: pt.y });
+                    strokes.push(currentStroke);
+                    globalUndoStack.push(ac);
+                    ctx.putImageData(savedImageData, 0, 0);
+                    drawStroke(currentStroke);
+                }
+                currentStroke = null;
+                savedImageData = null;
+            }
+
+            // Mouse
+            ac.addEventListener('mousedown', startStroke);
+            ac.addEventListener('mousemove', continueStroke);
+            ac.addEventListener('mouseup', endStroke);
+            ac.addEventListener('mouseleave', (e) => { if (isDrawing) endStroke(e); });
+
+            // Touch
+            ac.addEventListener('touchstart', startStroke, { passive: false });
+            ac.addEventListener('touchmove', continueStroke, { passive: false });
+            ac.addEventListener('touchend', endStroke, { passive: false });
+            ac.addEventListener('touchcancel', (e) => { if (isDrawing) endStroke(e); }, { passive: false });
+
+            // Custom events
+            ac.addEventListener('undoStroke', () => {
+                if (strokes.length > 0) { strokes.pop(); redrawAll(); }
+            });
+            ac.addEventListener('clearAll', () => {
+                strokes = [];
+                ctx.clearRect(0, 0, ac.width, ac.height);
+            });
         }
 
+        // --- Seletores de ferramentas ---
         const toolSelectors = document.querySelectorAll('.tool-selector');
+        function setAnnotationCanvasMode(enabled) {
+            document.querySelectorAll('.annotation-canvas').forEach(c => {
+                if (enabled) c.classList.add('drawing-enabled');
+                else c.classList.remove('drawing-enabled');
+            });
+        }
         toolSelectors.forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.annotation-canvas').forEach(c => c.dispatchEvent(new Event('resetHighlightState')));
                 toolSelectors.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                if (btn.dataset.color) { activeColor = btn.dataset.color; highlighterEnabled = true; els.essayViewer.classList.add('highlighter-cursor', 'active'); }
-                else { highlighterEnabled = false; els.essayViewer.classList.remove('highlighter-cursor', 'active'); }
+                if (btn.dataset.color) {
+                    activeColor = btn.dataset.color;
+                    highlighterEnabled = true;
+                    els.essayViewer.classList.add('highlighter-cursor', 'active');
+                    setAnnotationCanvasMode(true);
+                } else {
+                    highlighterEnabled = false;
+                    els.essayViewer.classList.remove('highlighter-cursor', 'active');
+                    setAnnotationCanvasMode(false);
+                }
             });
         });
+        els.undoAnnotationBtn.addEventListener('click', () => {
+            if (globalUndoStack.length > 0) {
+                const canvas = globalUndoStack.pop();
+                canvas.dispatchEvent(new Event('undoStroke'));
+            }
+        });
         els.clearAnnotationsBtn.addEventListener('click', () => {
-            document.querySelectorAll('.annotation-canvas').forEach(c => c.getContext('2d').clearRect(0, 0, c.width, c.height));
+            document.querySelectorAll('.annotation-canvas').forEach(c => c.dispatchEvent(new Event('clearAll')));
+            globalUndoStack = [];
         });
 
         // --- Notas ---
@@ -513,7 +620,16 @@
         function closeMobilePanel() { els.evaluationPanel.classList.remove('is-open'); els.panelOverlay.classList.remove('is-active'); }
         els.panelToggleButton.addEventListener('click', () => { const o = els.evaluationPanel.classList.toggle('is-open'); els.panelOverlay.classList.toggle('is-active', o); });
         els.panelOverlay.addEventListener('click', closeMobilePanel);
-        document.addEventListener('keydown', (e) => { if (e.key === 'F5') { e.preventDefault(); location.reload(); } });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5') { e.preventDefault(); location.reload(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && fileLoaded) {
+                e.preventDefault();
+                if (globalUndoStack.length > 0) {
+                    const canvas = globalUndoStack.pop();
+                    canvas.dispatchEvent(new Event('undoStroke'));
+                }
+            }
+        });
 
         // --- Gerar grafico de historico em canvas offscreen para incluir no PDF ---
         function renderChartToCanvas(history, width, height) {
