@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Corretor de Redações ENEM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+        .highlighter-cursor.active { cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iIzAwMDAwMCIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjguODksODQuODlsLTU2LjItNTYuOUExNiwxNiwwLDAsMCwxNjAuMjIsMjRIMTRhOCw4LDAsMCwwLTgsOFYyMjRhOCw4LDAsMCwwLDgsOGg1MC4yMmExNiwxNiwwLDAsMCwxMS4zMS00LjY5bDEwOC43LTExMC45MUExNiwxNiwwLDAsMCwyMjguODksODQuODlaTTEwNCwxOTIuMjNhOCw4LDAsMCwxLTExLjMxLDExLjMxbC0xNiwxNkgzMlY0MGgxMjAuMjNsNDgsNDguNDVaTTIxNiwxMDQuODlsLTQwLTQwTDE5Miw0OC44OSwyMDgsNjQuODlaIj48L3BhdGg+PC9zdmc+'), crosshair; }
+        .page-container { position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1rem; background-color: white; }
+        #essay-viewer { touch-action: none; }
+        #zoom-target { transform-origin: 0 0; transition: transform 0.1s linear; }
+        .annotation-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        .tool-selector.active { transform: scale(1.15); box-shadow: 0 0 0 3px #3b82f6; }
+        .score-button { padding: 0.3rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-weight: 500; transition: all 0.2s ease-in-out; background-color: #f9fafb; color: #374151; flex-grow: 1; }
+        .score-button:hover { background-color: #f3f4f6; border-color: #9ca3af; }
+        .score-button.selected-score { background-color: #2563eb; color: white; border-color: #1d4ed8; transform: scale(1.05); box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1); }
+        .suggestion-item:hover { background-color: #f3f4f6; }
+        @media (max-width: 1023px) {
+            #evaluation-panel { position: fixed; top: 0; right: 0; width: 80%; max-width: 300px; height: 100vh; transform: translateX(100%); transition: transform 0.3s ease-in-out; z-index: 50; overflow-y: auto; box-shadow: -4px 0 15px rgba(0,0,0,0.2); }
+            #evaluation-panel.is-open { transform: translateX(0); }
+            #panel-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 49; opacity: 0; transition: opacity 0.3s ease-in-out; pointer-events: none; }
+            #panel-overlay.is-active { opacity: 1; pointer-events: auto; }
+            #panel-toggle-button { position: fixed; top: 50%; right: 0; transform: translateY(-50%); z-index: 60; background-color: #2563eb; color: white; padding: 1rem 0.5rem; border-top-left-radius: 0.5rem; border-bottom-left-radius: 0.5rem; box-shadow: -2px 0 5px rgba(0,0,0,0.2); transition: right 0.3s ease-in-out; }
+            #evaluation-panel.is-open + #panel-toggle-button { right: 80%; }
+            @media (min-width: 300px) { #evaluation-panel.is-open + #panel-toggle-button { right: 300px; } }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-2 md:p-6">
+        <header id="page-header" class="text-center mb-3">
+            <h1 class="text-xl md:text-2xl font-bold text-gray-900">Corretor Web App</h1>
+            <p class="text-sm md:text-base font-semibold text-gray-700">PROFESSORA JAQUELINE CARDOSO</p>
+            <p class="text-xs text-blue-600 mt-1" id="loading-students">Carregando lista de alunos...</p>
+        </header>
+
+        <div id="file-selector-bar" class="bg-white p-2 rounded-lg shadow-md mb-3 flex items-center justify-center">
+            <label for="file-upload" class="cursor-pointer bg-blue-600 text-white font-semibold py-1 px-3 rounded-lg hover:bg-blue-700 transition-colors text-xs">
+                Selecionar Arquivo
+            </label>
+            <input id="file-upload" type="file" class="hidden" accept="image/*,application/pdf">
+            <span id="file-name" class="text-gray-500 ml-3 text-xs truncate max-w-xs">Nenhum arquivo</span>
+        </div>
+
+        <main id="main-content" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <section id="essay-viewer" class="lg:col-span-3 bg-gray-200 rounded-lg overflow-hidden min-h-[90vh] relative">
+                 <div id="zoom-target">
+                    <div id="drop-zone" class="flex flex-col items-center justify-center h-full border-2 border-dashed border-gray-400 rounded-lg text-center p-8 absolute inset-0">
+                        <svg class="h-12 w-12 text-gray-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        <p class="text-gray-600 font-semibold">Arraste e solte o arquivo aqui</p>
+                    </div>
+                 </div>
+            </section>
+            
+            <aside id="evaluation-panel" class="lg:col-span-1 bg-white p-4 rounded-lg shadow-lg hidden h-fit lg:sticky lg:top-6">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h2 class="text-xl font-bold">Avaliação</h2>
+                    <button id="new-correction-btn" title="Nova Correção (F5)" class="p-1.5 rounded-full hover:bg-gray-200 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="student-name" class="block font-semibold mb-1 text-sm">Aluno (da Planilha):</label>
+                        <div class="relative" id="student-name-container">
+                            <input type="text" id="student-name" placeholder="Selecione o aluno..." class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm" autocomplete="off">
+                            <input type="hidden" id="student-email">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="lesson-name" class="block font-semibold mb-1 text-sm">Aula / Tema:</label>
+                        <input type="text" id="lesson-name" placeholder="Ex: Aula 05 - Modernismo" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                    
+                    <!-- Competências -->
+                    <div class="competency border-t pt-3"><label class="block font-semibold text-sm">Competência I</label><p class="text-xs text-gray-500 mb-1">Domínio da norma culta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c1" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competência II</label><p class="text-xs text-gray-500 mb-1">Compreensão da proposta.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c2" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competência III</label><p class="text-xs text-gray-500 mb-1">Organizar informações.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c3" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competência IV</label><p class="text-xs text-gray-500 mb-1">Mecanismos linguísticos.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c4" value="0"></div>
+                    <div class="competency"><label class="block font-semibold text-sm">Competência V</label><p class="text-xs text-gray-500 mb-1">Proposta de intervenção.</p><div class="flex flex-wrap gap-1 score-selector"><button data-score="0" class="score-button selected-score">0</button><button data-score="40" class="score-button">40</button><button data-score="80" class="score-button">80</button><button data-score="120" class="score-button">120</button><button data-score="160" class="score-button">160</button><button data-score="200" class="score-button">200</button></div><input type="hidden" class="competency-score" id="c5" value="0"></div>
+
+                    <div class="pt-2 border-t"><h3 class="text-lg font-bold">Nota Final: <span id="final-score" class="text-blue-600">0</span></h3></div>
+                    
+                    <div class="flex flex-col gap-2 pt-2">
+                        <button id="save-finalize-btn" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 shadow-md" disabled>
+                            FINALIZAR E ENVIAR
+                        </button>
+                    </div>
+                    <p class="text-center text-xs text-gray-400 pt-2">PROJETO JOHNNY VERSÃO 2.0 (WEB APP)</p>
+                </div>
+            </aside>
+        </main>
+    </div>
+    
+    <div id="highlighter-toolbar" class="hidden fixed bottom-4 right-1/2 translate-x-1/2 z-40 bg-white p-2 rounded-full shadow-lg flex flex-row items-center gap-3">
+        <button id="cursor-tool" class="tool-selector p-1.5 rounded-full border-2 border-gray-200 transition-transform active" data-tool="cursor" title="Navegar"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.6,15.5l-3.2,2.1c-0.2,0.1-0.5,0.1-0.7-0.1l-1.4-1.4c-0.2-0.2-0.2-0.5,0-0.7l2.1-3.2L15.5,0.6c0.2-0.2,0.5-0.2,0.7,0l3.2,3.2c0.2,0.2,0.2,0.5,0,0.7L6.6,15.5z M4.7,13.1l-0.7,1.1l0.7,0.7l1.1-0.7L4.7,13.1z"/></svg></button>
+        <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(255, 255, 0, 0.4)" style="background-color: yellow;" title="Marca-texto Amarelo"></button>
+        <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(0, 255, 255, 0.4)" style="background-color: cyan;" title="Marca-texto Ciano"></button>
+        <button class="tool-selector w-6 h-6 rounded-full border-2 border-gray-200 transition-transform" data-color="rgba(255, 0, 255, 0.4)" style="background-color: magenta;" title="Marca-texto Magenta"></button>
+        <div class="border-l h-5 mx-1"></div>
+        <button id="clear-annotations" class="tool-selector p-1.5 rounded-full border-2 border-gray-200 transition-transform" title="Limpar"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
+    </div>
+
+    <button id="panel-toggle-button" class="lg:hidden hidden"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+    <div id="panel-overlay" class="lg:hidden"></div>
+    <div id="alert-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h3 id="alert-title" class="text-xl font-bold mb-4 text-center">Atenção</h3>
+            <div id="alert-content" class="text-gray-700 mb-6 text-left text-sm whitespace-pre-wrap max-h-[60vh] overflow-y-auto"></div>
+            <div class="flex justify-center"><button id="alert-close" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700">OK</button></div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+        
+        // Elementos DOM
+        const els = {
+            fileUpload: document.getElementById('file-upload'), fileNameSpan: document.getElementById('file-name'), essayViewer: document.getElementById('essay-viewer'), zoomTarget: document.getElementById('zoom-target'), dropZone: document.getElementById('drop-zone'), evaluationPanel: document.getElementById('evaluation-panel'), saveFinalizeBtn: document.getElementById('save-finalize-btn'), clearAnnotationsBtn: document.getElementById('clear-annotations'), panelToggleButton: document.getElementById('panel-toggle-button'), panelOverlay: document.getElementById('panel-overlay'), highlighterToolbar: document.getElementById('highlighter-toolbar'), studentNameInput: document.getElementById('student-name'), studentNameContainer: document.getElementById('student-name-container'), studentEmailInput: document.getElementById('student-email'), lessonNameInput: document.getElementById('lesson-name'), newCorrectionBtn: document.getElementById('new-correction-btn'), pageHeader: document.getElementById('page-header'), fileSelectorBar: document.getElementById('file-selector-bar'), alertModal: document.getElementById('alert-modal'), alertTitle: document.getElementById('alert-title'), alertContent: document.getElementById('alert-content'), alertClose: document.getElementById('alert-close'), loadingStudents: document.getElementById('loading-students')
+        };
+
+        // Estado Global
+        let studentsList = []; 
+        let activeColor = 'rgba(255, 255, 0, 0.4)';
+        let highlighterEnabled = false;
+        let isDrawing = false;
+        let scale = 1, panX = 0, panY = 0;
+        let isPanning = false, startPanX, startPanY, isPinching = false, startPinchDist;
+
+        // --- Inicialização ---
+        window.onload = function() {
+            // Busca dados da Planilha ao iniciar
+            google.script.run.withSuccessHandler(function(data) {
+                studentsList = data;
+                els.loadingStudents.textContent = "Lista de alunos carregada!";
+                setTimeout(() => els.loadingStudents.style.display = 'none', 2000);
+            }).withFailureHandler(function(err) {
+                els.loadingStudents.textContent = "Erro ao carregar alunos.";
+                showAlert('Erro', 'Não foi possível carregar a lista de alunos da planilha.\nVerifique se a aba DADOS existe.');
+            }).getStudentsFromSheet();
+        };
+
+        els.newCorrectionBtn.addEventListener('click', () => {
+            google.script.run.withSuccessHandler(function(url){
+                 window.open(url, '_top');
+            }).getScriptUrl(); // Necessário criar func no backend ou apenas recarregar:
+            location.reload(); 
+        });
+
+        // --- Lógica Autocomplete Alunos ---
+        const suggestionsContainer = document.createElement('div');
+        suggestionsContainer.className = 'absolute z-20 w-full bg-white border border-gray-300 rounded-md mt-1 hidden max-h-48 overflow-y-auto shadow-lg';
+        els.studentNameContainer.appendChild(suggestionsContainer);
+
+        function filterStudents() {
+            const val = els.studentNameInput.value.toLowerCase();
+            const filtered = studentsList.filter(s => s.name.toLowerCase().includes(val));
+            suggestionsContainer.innerHTML = '';
+            
+            if (filtered.length > 0) {
+                filtered.forEach(student => {
+                    const div = document.createElement('div');
+                    div.className = 'p-2 cursor-pointer hover:bg-gray-100 text-sm suggestion-item';
+                    div.textContent = student.name;
+                    div.onclick = () => {
+                        els.studentNameInput.value = student.name;
+                        els.studentEmailInput.value = student.email;
+                        suggestionsContainer.classList.add('hidden');
+                    };
+                    suggestionsContainer.appendChild(div);
+                });
+                suggestionsContainer.classList.remove('hidden');
+            } else {
+                suggestionsContainer.classList.add('hidden');
+            }
+        }
+
+        els.studentNameInput.addEventListener('input', filterStudents);
+        els.studentNameInput.addEventListener('focus', () => {
+            if(studentsList.length > 0) filterStudents();
+        });
+        document.addEventListener('click', (e) => {
+            if (!els.studentNameContainer.contains(e.target)) suggestionsContainer.classList.add('hidden');
+        });
+
+        // --- Lógica de Upload e Visualização ---
+        els.fileUpload.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+        async function handleFile(file) {
+            els.pageHeader.classList.add('hidden');
+            els.fileSelectorBar.classList.add('hidden');
+            els.zoomTarget.innerHTML = '<p class="text-center p-8">Carregando...</p>';
+            els.evaluationPanel.classList.remove('hidden'); 
+            els.panelToggleButton.classList.remove('hidden'); 
+            els.highlighterToolbar.classList.remove('hidden');
+            els.saveFinalizeBtn.disabled = false;
+            closeMobilePanel();
+            scale = 1; panX = 0; panY = 0; updateTransform();
+
+            if (file.type.startsWith('image/')) renderImage(file);
+            else if (file.type === 'application/pdf') await renderPdf(file);
+            else els.zoomTarget.innerHTML = `<p class="text-center p-8 text-red-500">Formato não suportado.</p>`;
+        }
+
+        // ... (Funções de renderImage, renderPdf, createPageContainer mantidas idênticas ao código anterior) ...
+        function renderImage(file) { const reader = new FileReader(); reader.onload = (e) => { els.zoomTarget.innerHTML = ''; const container = createPageContainer(); const img = document.createElement('img'); img.src = e.target.result; img.className = 'page-content'; img.onload = () => setupCanvasForContainer(container, img.naturalWidth, img.naturalHeight); container.appendChild(img); els.zoomTarget.appendChild(container); }; reader.readAsDataURL(file); }
+        async function renderPdf(file) { els.zoomTarget.innerHTML = ''; const fileReader = new FileReader(); fileReader.onload = async function() { const typedarray = new Uint8Array(this.result); const pdf = await pdfjsLib.getDocument(typedarray).promise; for (let i = 1; i <= pdf.numPages; i++) { const page = await pdf.getPage(i); const viewport = page.getViewport({ scale: 1.5 }); const container = createPageContainer(); const canvas = document.createElement('canvas'); canvas.className = 'page-content'; const context = canvas.getContext('2d'); canvas.height = viewport.height; canvas.width = viewport.width; await page.render({ canvasContext: context, viewport: viewport }).promise; container.appendChild(canvas); els.zoomTarget.appendChild(container); setupCanvasForContainer(container, viewport.width, viewport.height); } }; fileReader.readAsArrayBuffer(file); }
+        function createPageContainer() { const container = document.createElement('div'); container.className = 'page-container'; return container; }
+
+        // --- Lógica de Zoom, Pan e Marca Texto (Mantida igual para preservar a UX) ---
+        function updateTransform() { els.zoomTarget.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`; }
+        els.essayViewer.addEventListener('mousedown', (e) => { if (highlighterEnabled) return; isPanning = true; startPanX = e.clientX - panX; startPanY = e.clientY - panY; els.essayViewer.style.cursor = 'grabbing'; });
+        els.essayViewer.addEventListener('mousemove', (e) => { if (!isPanning) return; panX = e.clientX - startPanX; panY = e.clientY - startPanY; updateTransform(); });
+        const endPan = () => { isPanning = false; els.essayViewer.style.cursor = 'grab'; };
+        els.essayViewer.addEventListener('mouseup', endPan); els.essayViewer.addEventListener('mouseleave', endPan);
+        els.essayViewer.addEventListener('wheel', (e) => { e.preventDefault(); const rect = els.essayViewer.getBoundingClientRect(); const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top; const zoomFactor = e.deltaY * -0.005; const newScale = Math.max(0.5, Math.min(5, scale + zoomFactor)); panX -= (mouseX - panX) * (newScale / scale - 1); panY -= (mouseY - panY) * (newScale / scale - 1); scale = newScale; updateTransform(); });
+        
+        function setupCanvasForContainer(container, width, height) {
+            const annotationCanvas = document.createElement('canvas'); annotationCanvas.className = 'annotation-canvas'; annotationCanvas.width = width; annotationCanvas.height = height; container.appendChild(annotationCanvas);
+            const ctx = annotationCanvas.getContext('2d'); ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.lineWidth = 15;
+            let firstClickPoint = null;
+            const getPointOnCanvas = (e) => { const clientX = e.clientX || e.touches[0].clientX, clientY = e.clientY || e.touches[0].clientY; const rect = annotationCanvas.getBoundingClientRect(); return { x: (clientX - rect.left) / (rect.width / annotationCanvas.width), y: (clientY - rect.top) / (rect.height / annotationCanvas.height) }; };
+            const handleHighlightClick = (e) => { if (!highlighterEnabled) return; const currentPoint = getPointOnCanvas(e); if (!firstClickPoint) { firstClickPoint = currentPoint; } else { ctx.strokeStyle = activeColor; ctx.beginPath(); ctx.moveTo(firstClickPoint.x, firstClickPoint.y); ctx.lineTo(currentPoint.x, firstClickPoint.y); ctx.stroke(); firstClickPoint = null; } };
+            annotationCanvas.addEventListener('click', handleHighlightClick);
+            annotationCanvas.addEventListener('touchend', (e) => { if(highlighterEnabled) { e.preventDefault(); handleHighlightClick(e); } }, { passive: false });
+            annotationCanvas.addEventListener('resetHighlightState', () => { firstClickPoint = null; });
+        }
+        
+        const toolSelectors = document.querySelectorAll('.tool-selector');
+        toolSelectors.forEach(button => { button.addEventListener('click', () => { const resetEvent = new Event('resetHighlightState'); document.querySelectorAll('.annotation-canvas').forEach(c => c.dispatchEvent(resetEvent)); toolSelectors.forEach(btn => btn.classList.remove('active')); button.classList.add('active'); if (button.dataset.color) { activeColor = button.dataset.color; highlighterEnabled = true; els.essayViewer.classList.add('highlighter-cursor', 'active'); els.essayViewer.style.cursor = ''; } else { highlighterEnabled = false; els.essayViewer.classList.remove('highlighter-cursor', 'active'); els.essayViewer.style.cursor = 'grab'; } }); });
+        els.clearAnnotationsBtn.addEventListener('click', () => { document.querySelectorAll('.annotation-canvas').forEach(canvas => canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)); });
+
+        // --- Lógica de Notas ---
+        const finalScoreSpan = document.getElementById('final-score');
+        document.querySelectorAll('.score-selector').forEach(container => { container.addEventListener('click', (e) => { if (e.target.classList.contains('score-button')) { const button = e.target; button.parentElement.nextElementSibling.value = button.dataset.score; container.querySelectorAll('.score-button').forEach(sib => sib.classList.remove('selected-score')); button.classList.add('selected-score'); calculateTotal(); } }); });
+        function calculateTotal() { let total = 0; document.querySelectorAll('.competency-score').forEach(input => { total += Number(input.value) || 0; }); finalScoreSpan.textContent = total; }
+
+        // --- Modals e UI ---
+        function showAlert(title, content) { els.alertTitle.textContent = title; els.alertContent.innerHTML = content; els.alertModal.classList.remove('hidden'); }
+        els.alertClose.addEventListener('click', () => els.alertModal.classList.add('hidden'));
+        function closeMobilePanel() { els.evaluationPanel.classList.remove('is-open'); els.panelOverlay.classList.remove('is-active'); }
+        els.panelToggleButton.addEventListener('click', () => { const isOpen = els.evaluationPanel.classList.toggle('is-open'); els.panelOverlay.classList.toggle('is-active', isOpen); });
+        els.panelOverlay.addEventListener('click', closeMobilePanel);
+
+        // --- SALVAR E ENVIAR ---
+        els.saveFinalizeBtn.addEventListener('click', async () => {
+            const studentName = els.studentNameInput.value.trim();
+            const studentEmail = els.studentEmailInput.value.trim();
+            const lessonName = els.lessonNameInput.value.trim();
+
+            if (!studentName) { showAlert('Atenção', 'Selecione um aluno da lista.'); return; }
+            if (!lessonName) { showAlert('Atenção', 'Informe qual é a aula/tema.'); return; }
+
+            els.highlighterToolbar.style.display = 'none';
+            els.saveFinalizeBtn.disabled = true;
+            els.saveFinalizeBtn.textContent = 'Processando...';
+            showAlert('Aguarde', 'Gerando PDF e enviando para o servidor...');
+
+            // 1. Gerar PDF usando jsPDF
+            await new Promise(r => setTimeout(r, 100)); // UI refresh
+            const originalTransform = els.zoomTarget.style.transform;
+            els.zoomTarget.style.transform = ''; // Reset zoom para captura
+            
+            const mainCanvas = await html2canvas(document.getElementById('main-content'), { scale: 1.5, useCORS: true, logging: false });
+            els.zoomTarget.style.transform = originalTransform;
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
+            
+            const imgData = mainCanvas.toDataURL('image/png');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const imgProps = pdf.getImageProperties(imgData);
+            const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            let heightLeft = imgHeight; let position = 0;
+            
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pdf.internal.pageSize.getHeight();
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+                heightLeft -= pdf.internal.pageSize.getHeight();
+            }
+
+            // Nota: Histórico completo via gráfico depende de salvar as notas na planilha (passo futuro).
+            // Por enquanto, salvamos o PDF da correção atual.
+
+            // 2. Converter PDF para Data URI String (Base64)
+            const pdfOutput = pdf.output('datauristring');
+
+            // 3. Enviar para o Backend Google
+            els.alertContent.textContent = 'Enviando e-mail e salvando no Drive...';
+            
+            google.script.run.withSuccessHandler(function(response) {
+                els.highlighterToolbar.style.display = 'flex';
+                els.saveFinalizeBtn.disabled = false;
+                els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
+
+                if (response.success) {
+                    let msg = `PDF Salvo no Drive com sucesso!<br>Link: <a href="${response.url}" target="_blank" class="text-blue-600 underline">Abrir Arquivo</a><br><br>`;
+                    msg += response.emailStatus;
+                    showAlert('Sucesso', msg);
+                } else {
+                    showAlert('Erro', 'Ocorreu um erro no servidor:<br>' + response.error);
+                }
+            }).withFailureHandler(function(err) {
+                els.highlighterToolbar.style.display = 'flex';
+                els.saveFinalizeBtn.disabled = false;
+                els.saveFinalizeBtn.textContent = 'FINALIZAR E ENVIAR';
+                showAlert('Erro Crítico', 'Falha na comunicação com o Google Apps Script.');
+            }).processCorrection(pdfOutput, studentName, studentEmail, lessonName);
+        });
+
+    </script>
+</body>
+</html>
